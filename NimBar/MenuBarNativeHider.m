@@ -154,6 +154,16 @@
     self.pendingAssertion = nil;
 
     NSMutableSet<NSString *> *allowedBundles = [NSMutableSet set];
+    // The assessment assertion must never block macOS' own launchers and
+    // search surfaces. Some of them are on-demand services and aren't listed
+    // as running applications when the assertion is first installed.
+    [allowedBundles addObjectsFromArray:@[
+        @"com.apple.dock",
+        @"com.apple.launchpad",
+        @"com.apple.Launchpad",
+        @"com.apple.Spotlight",
+        @"com.apple.finder"
+    ]];
     for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
         NSString *identifier = application.bundleIdentifier;
         if (identifier.length && ![self.requestedHiddenBundles containsObject:identifier]) {

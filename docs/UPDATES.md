@@ -1,13 +1,16 @@
-# NimBar Updates — Technical Plan
+# NimBar Updates
 
-This document proposes a future way to connect NimBar updates to GitHub Releases. It is a local planning note: **it does not configure an update source, enable network requests, or install updates**.
+NimBar checks the public GitHub Releases API at `https://api.github.com/repos/emanuele0409/NimBar/releases?per_page=30` using HTTPS. A manual check is available in the app; automatic checks run at launch and every 24 hours only when selected in Update settings. The client sends no account token, preferences, menu-bar data, or user identifier.
+
+When a newer supported release is found, NimBar opens its GitHub release page so the user can read release notes and download the package manually. The first public beta is `v0.2.0-beta.41`. NimBar does **not** download or install packages automatically: that path remains disabled until the packages have a verifiable signing identity and a secure installer.
 
 ## Verified repository state
 
 The following points were checked in the current repository source and packaging script; they describe this checkout, not a published build:
 
-- The Xcode project declares version `0.2.0`, build `38`, macOS deployment target `27.0`, and bundle identifier `com.nimbar.NimBar`.
-- The update interface and `AppUpdateController` exist, but the controller is initialized with its default `service: nil`. No GitHub client is present to check releases or download packages; without a service, the interface reports that updates are not configured.
+- The Xcode project declares version `0.2.0`, build `41`, beta release channel, macOS deployment target `27.0`, and bundle identifier `com.nimbar.NimBar`.
+- `GitHubReleaseService` performs a read-only request for the newest 30 published releases. It ignores drafts and unsupported version tags. It recognizes `vMAJOR.MINOR.PATCH` and `vMAJOR.MINOR.PATCH-beta.BUILD`; the beta suffix must agree with GitHub's prerelease flag.
+- Release asset URLs are not downloaded by the app. The app opens only an HTTPS release page hosted at `github.com/emanuele0409/NimBar/releases/`.
 - The local packaging script asks Xcode to use an `Apple Development` signing identity, verifies the signature and Team ID, and does not notarize the package.
 
 These source findings do not independently verify the signature, notarization status, or architecture of any already-built app or archive. Recheck the actual release artifacts before distribution. Apple Development signing is not Developer ID signing.
@@ -16,17 +19,17 @@ Source inspected: `NimBar/AppUpdateController.swift`, `NimBar/AppDelegate.swift`
 
 ## Release source and update channels
 
-**Proposal:** Once the official repository is public, use only published releases from `emanuele0409/NimBar` over HTTPS. GitHub's REST API permits unauthenticated requests for public resources. The client should not contain personal tokens or credentials with write access. Handle HTTP errors, rate limits, timeouts, malformed responses, and pagination; none should be reported as “NimBar is up to date.” [GitHub REST API: releases](https://docs.github.com/en/rest/releases/releases), [REST API rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+The app uses published releases from `emanuele0409/NimBar` over HTTPS. GitHub's REST API permits unauthenticated requests for public resources. The client contains no token or write credential. HTTP errors, rate limits, timeouts, and malformed responses are shown as failed checks, never as “NimBar is up to date.” The current request reads the newest 30 releases; extend it with pagination if the supported channel/version policy ever requires older pages. [GitHub REST API: releases](https://docs.github.com/en/rest/releases/releases), [REST API rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
 
 GitHub's `GET /repos/{owner}/{repo}/releases/latest` endpoint returns the latest published full release, excluding prereleases and drafts. It therefore cannot discover beta builds. For beta updates, the client would need to list releases, ignore drafts, and select entries marked `prerelease: true`; it must follow GitHub pagination if the list exceeds one page. GitHub documents `created_at` as the date of the commit used for the release, not the date the release was drafted or published, so it should not be treated as `published_at`. [GitHub REST API: releases](https://docs.github.com/en/rest/releases/releases), [managing repository releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
 
-**Proposed policy:** Keep **stable** and **beta** channels distinct. A stable installation should receive stable releases only. A beta installation may receive beta releases and, if that policy is chosen, stable releases. The channel should be explicit and persistent. GitHub exposes a prerelease flag; it does not define NimBar's channel policy or version comparison rules.
+The current app identifies itself as a **beta** build in its bundle metadata. Beta builds can discover beta and stable releases; stable builds filter out prereleases. The GitHub prerelease flag must match the supported tag form. A stable release with the same version is ordered after the corresponding beta. GitHub does not define NimBar's channel policy.
 
 ### Version ordering
 
-The current source compares `CFBundleShortVersionString` numerically and compares the build number when versions are equal. Before implementing a real update service, define and test one consistent scheme for release tags, app versions, beta prereleases, and build numbers. The comparator should treat a prerelease as earlier than its corresponding stable release, reject downgrades, and avoid relying on lexicographic tag order, display names, or GitHub dates. Semantic Versioning defines version precedence and prerelease identifiers; NimBar would still need to decide how its internal build number participates. [Semantic Versioning 2.0.0](https://semver.org/).
+The app compares the numeric `CFBundleShortVersionString`, then compares the beta build suffix when versions match. A stable release sorts after a prerelease with the same version. Do not use release titles or publication dates for version ordering. [Semantic Versioning 2.0.0](https://semver.org/).
 
-**Possible convention, not yet adopted:** use tags like `vMAJOR.MINOR.PATCH` for stable and `vMAJOR.MINOR.PATCH-beta.N` for beta, with the macOS build number kept as separate metadata. Do not publish a mixed or ambiguous format until the app comparator has been updated and verified.
+Use tags `vMAJOR.MINOR.PATCH` for stable and `vMAJOR.MINOR.PATCH-beta.BUILD` for beta. The beta suffix is the app's build number. For example, app version `0.2.0`, build `41` uses tag `v0.2.0-beta.41` and the GitHub prerelease checkbox must be enabled. Stable releases must omit the suffix and have the prerelease checkbox disabled.
 
 ## Asset selection and downloads
 
@@ -61,17 +64,17 @@ Before choosing Sparkle, assess whether it and its XPC installer service fit Nim
 
 Manual installation instructions should explain Gatekeeper in a way that matches the release's actual signing and notarization status. Do not recommend global security exceptions or removing quarantine.
 
-## Roadmap before enabling network access
+## Remaining work before automatic installation
 
-- [ ] Create and publish the repository and Releases pages only when explicitly requested by the author.
-- [ ] Choose the tag/version/build scheme and stable/beta policy; add comparator and downgrade test cases.
+- [x] Publish beta `v0.2.0-beta.41` with verified DMG and ZIP assets.
+- [ ] Confirm the tag/version/build scheme when preparing the first release and verify beta/stable precedence.
 - [ ] Define arm64 asset names. Test an Intel binary in the future before claiming Intel support.
 - [ ] Obtain and validate Developer ID Application signing, Hardened Runtime, Apple notarization, and stapling for the app/DMG; test Gatekeeper on a clean Mac.
 - [ ] Evaluate a current Sparkle 2 release, including compatibility with NimBar's configuration, XPC service, channels, and key management.
 - [ ] Define an official HTTPS appcast and separate stable and beta feeds; keep the EdDSA private key outside the repository and hosting server.
-- [ ] Implement read-only public requests, asset/architecture selection, signature validation, temporary download, installation, and rollback. Do not embed GitHub credentials in the client.
+- [ ] Implement asset/architecture selection, signature validation, temporary download, installation, and rollback. Do not embed GitHub credentials in the client.
 - [ ] Verify manual checks, automatic checks only, and automatic download/install, including offline network, rate limiting, malformed feeds, invalid signatures, interrupted downloads, insufficient disk space, and canceled installs.
-- [ ] Only after these steps connect the service to `AppUpdateController` and remove the “Updates not configured” state.
+- [x] Connect read-only release checks and manual navigation to the official GitHub release page.
 
 ## Official sources
 

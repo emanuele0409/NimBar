@@ -2,9 +2,11 @@
 import AppKit
 import SwiftUI
 import CoreGraphics
+import Combine
+import Carbon
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private var updateMenuItem: NSMenuItem?
@@ -26,14 +28,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let accessibility = MenuBarAccessibility()
     private let dividerAccessibility = MenuBarAccessibility()
     private let layout = MenuBarLayoutController()
-    private lazy var updater = AppUpdateController(settings: settings, canInstallAutomatically: { [weak self] in
-        guard let self else { return false }
-        return self.settingsWindow?.isVisible != true && !self.dividerModifiersActive
-            && self.liveEditor?.isBusy != true && !self.isMenuTracking && !self.settings.showPermissionSetup
-    })
+    private lazy var updater = AppUpdateController(
+        settings: settings,
+        service: GitHubReleaseService(),
+        canInstallAutomatically: { [weak self] in
+            guard let self else { return false }
+            return self.settingsWindow?.isVisible != true && !self.dividerModifiersActive
+                && self.liveEditor?.isBusy != true && !self.isMenuTracking && !self.settings.showPermissionSetup
+        }
+    )
     private var settingsWindow: NSWindow?
     private var appearanceObservation: NSKeyValueObservation?
     private var safeMode = false
+    private let loginItem = LoginItemController()
+    private var welcomePanel: NSPanel?
+    private var welcomeObservation: AnyCancellable?
+    private var statusVisibilityRetry: DispatchWorkItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The XCTest host is the app executable. Keep unit-test launches from
@@ -76,10 +86,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { @MainActor [weak self] in self?.updateResolvedAppearance() }
         }
         settings.onMenuBarVisibilityChanged = { [weak self] in
-            self?.layout.refreshVisibility()
             self?.updateStatusItemVisibility()
         }
-        layout.onCollapsedChanged = { [weak self] _ in self?.updateStatusItemVisibility() }
+        layout.onCollapsedChanged = { [weak self] collapsed in
+            guard let self else { return }
+            self.updateStatusItemVisibility()
+            if collapsed {
+                self.autoHideTimer?.invalidate()
+                self.autoHideTimer = nil
+            } else {
+                self.scheduleAutoHide()
+            }
+        }
         layout.onVisibilityApplied = { [weak self] in self?.updateStatusItemVisibility() }
         applyAppearanceMode()
         updateStatusItemImage()
@@ -92,9 +110,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let shouldShowPermissionSetup = !UserDefaults.standard.bool(forKey: permissionSetupKey) || !settings.hasLanguageSelection
         UserDefaults.standard.set(true, forKey: permissionSetupKey)
         settings.showPermissionSetup = false
-        openSettings()
-        // Present the permission sheet only after the main window is on screen;
-        // SwiftUI can otherwise drop a sheet requested during window creation.
+        let launchedAtLogin = NSAppleEventManager.shared().currentAppleEvent?
+            .paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+        if shouldShowPermissionSetup || !launchedAtLogin { openSettings() }
+        welcomeObservation = settings.$showPermissionSetup.removeDuplicates().sink { [weak self] show in
+            self?.setWelcomeVisible(show)
+        }
+        // Attach the welcome panel after the main window is on screen.
         if shouldShowPermissionSetup {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -110,13 +132,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self?.layout.resumeSavedAssignments()
                 })
             }
-        } else if shouldShowPermissionSetup {
-            startPermissionStatusMonitor()
         }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        accessibility.refreshPermissionStatus()
+        loginItem.refresh()
+        let previouslyHadScreenCaptureAccess = accessibility.hasScreenCaptureAccess
+        accessibility.refreshPermissionsAfterReturningToApp()
+        if !previouslyHadScreenCaptureAccess && accessibility.hasScreenCaptureAccess {
+            accessibility.refresh(afterCapture: { [weak self] in
+                self?.layout.resumeSavedAssignments()
+            })
+        }
         if permissionsReady && isWaitingForPermissionGrant { permissionStatusDidChange() }
     }
 
@@ -169,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func revealHiddenItemsIfBlankMenuBarClick(at location: NSPoint) {
-        let ownIconHidden = settings.hideNimBarIconWhenCollapsed && statusItem?.isVisible != true
+        let ownIconHidden = !settings.hideNimBarIcon && statusItem?.isVisible != true
         guard !dividerModifiersActive, liveEditor?.isBusy != true,
               permissionsReady, MenuBarRevealPolicy.shouldReveal(isCollapsed: layout.isCollapsed,
                 hasHiddenItems: layout.hasHiddenItems, ownIconHidden: ownIconHidden) else { return }
@@ -261,24 +288,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateStatusItemVisibility() {
-        // NimBar is removed from the native hidden-bundle assertion too; keep
-        // AppKit's own status item synchronized after each assertion completes.
-        let shouldBeVisible = !settings.hideNimBarIconWhenCollapsed || !layout.isCollapsed
-        statusItem?.isVisible = shouldBeVisible
+        statusVisibilityRetry?.cancel()
+        let shouldBeVisible = !settings.hideNimBarIcon
+        if statusItem?.isVisible != shouldBeVisible { statusItem?.isVisible = shouldBeVisible }
         guard shouldBeVisible else { return }
-        // The native menu-bar assertion can update slightly after its completion
-        // callback. Reassert visibility once that transaction settles.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            guard let self,
-                  !self.settings.hideNimBarIconWhenCollapsed || !self.layout.isCollapsed else { return }
+        let retry = DispatchWorkItem { [weak self] in
+            guard let self, !self.settings.hideNimBarIcon, self.statusItem?.isVisible == false else { return }
             self.statusItem?.isVisible = true
         }
-        // Reassert once the native hider has completed its asynchronous update.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self,
-                  !self.settings.hideNimBarIconWhenCollapsed || !self.layout.isCollapsed else { return }
-            self.statusItem?.isVisible = true
-        }
+        statusVisibilityRetry = retry
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: retry)
     }
 
     private func applyAppearanceMode() {
@@ -297,7 +316,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateResolvedAppearance() {
         settings.updateEffectiveAppearance(NSApp.effectiveAppearance)
-        settingsWindow?.backgroundColor = settings.effectiveColorScheme == .light ? .white : .clear
+        settingsWindow?.backgroundColor = settings.effectiveColorScheme == .light ? .white : .windowBackgroundColor
         updateStatusItemImage()
     }
 
@@ -341,11 +360,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         autoHideLastTick = Date()
         autoHideTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self, !self.layout.isCollapsed else { return }
+                guard let self else { return }
+                guard !self.layout.isCollapsed else {
+                    self.autoHideTimer?.invalidate()
+                    self.autoHideTimer = nil
+                    return
+                }
                 let now = Date()
                 let elapsed = now.timeIntervalSince(self.autoHideLastTick)
                 self.autoHideLastTick = now
-                guard !self.isPointerOverMenuBar(), !self.dividerModifiersActive,
+                guard !self.isPointerOverMenuBar(), !self.dividerModifiersActive, !self.isMenuTracking,
                       self.liveEditor?.isBusy != true else { return }
                 self.autoHideRemaining -= elapsed
                 guard self.autoHideRemaining <= 0 else { return }
@@ -377,21 +401,83 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             accessibility: accessibility,
             layout: layout,
             updater: updater,
+            loginItem: loginItem,
             quit: { [weak self] in self?.quit() }
         ))
         let window = NSWindow(contentViewController: hosting)
         window.title = L10n.text("NimBar — Impostazioni")
         window.setContentSize(NSSize(width: 960, height: 680))
-        window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.titlebarAppearsTransparent = false
         window.titleVisibility = .hidden
-        window.isOpaque = false
-        window.backgroundColor = settings.effectiveColorScheme == .light ? .white : .clear
+        window.isOpaque = true
+        window.backgroundColor = settings.effectiveColorScheme == .light ? .white : .windowBackgroundColor
         window.center()
         window.isReleasedWhenClosed = false
         settingsWindow = window
+        window.delegate = self
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    private func setWelcomeVisible(_ visible: Bool) {
+        if !visible {
+            permissionPollTimer?.invalidate()
+            permissionPollTimer = nil
+            isWaitingForPermissionGrant = false
+            if let panel = welcomePanel {
+                settingsWindow?.removeChildWindow(panel)
+                panel.orderOut(nil)
+                welcomePanel = nil
+            }
+            return
+        }
+        guard welcomePanel == nil else { return }
+        openSettings()
+        guard let parent = settingsWindow else { return }
+        let hosting = NSHostingView(rootView: PermissionGateView(store: settings, accessibility: accessibility) { [weak self] in
+            self?.settings.confirmLanguageChoice()
+            self?.settings.showPermissionSetup = false
+        })
+        let size = hosting.fittingSize
+        let panel = WelcomePanel(contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless], backing: .buffered, defer: false)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.isReleasedWhenClosed = false
+        panel.contentView = hosting
+        hosting.wantsLayer = true
+        hosting.layer?.cornerRadius = 24
+        hosting.layer?.masksToBounds = true
+        welcomePanel = panel
+        panel.setFrameOrigin(NSPoint(x: parent.frame.midX - size.width / 2,
+                                     y: parent.frame.midY - size.height / 2))
+        parent.addChildWindow(panel, ordered: .above)
+        panel.makeKeyAndOrderFront(nil)
+        if !permissionsReady { startPermissionStatusMonitor() }
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        if let window = notification.object as? NSWindow, window === settingsWindow {
+            settings.showPermissionSetup = false
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettings()
+        return true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        autoHideTimer?.invalidate()
+        permissionPollTimer?.invalidate()
+        dividerModifierTimer?.invalidate()
+        statusVisibilityRetry?.cancel()
+        welcomeObservation?.cancel()
+        for monitor in [globalMouseMonitor, localMouseMonitor, globalRightMouseMonitor, localRightMouseMonitor] {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+        }
     }
 
     private func startPermissionStatusMonitor() {
@@ -477,4 +563,9 @@ enum MenuBarRevealPolicy {
     static func shouldReveal(isCollapsed: Bool, hasHiddenItems: Bool, ownIconHidden: Bool) -> Bool {
         ownIconHidden || (isCollapsed && hasHiddenItems)
     }
+}
+
+
+private final class WelcomePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
 }

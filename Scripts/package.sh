@@ -4,18 +4,20 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 DERIVED=${MENU_LITE_DERIVED_DATA:-/private/tmp/NimBarBuild}
 APP=${MENU_LITE_PACKAGE_APP:-/private/tmp/NimBar.app}
 OUT=${MENU_LITE_PACKAGE_OUT:-"$ROOT/build/packages"}
-SIGNING_IDENTITY=${MENU_LITE_SIGNING_IDENTITY:-Apple Development}
+SIGNING_IDENTITY=${MENU_LITE_SIGNING_IDENTITY:-6A1A131688AC29BD01914E366951696097276710}
 SIGNING_TEAM=${MENU_LITE_SIGNING_TEAM:-L4R3ATNCT8}
+SIGNING_KEYCHAIN=${MENU_LITE_SIGNING_KEYCHAIN:-$HOME/Library/Keychains/login.keychain-db}
 
 cd "$ROOT"
 xcodebuild -project NimBar.xcodeproj -scheme NimBar -configuration Release -sdk macosx \
-    -derivedDataPath "$DERIVED" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
-    DEVELOPMENT_TEAM="$SIGNING_TEAM" CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES build
+    -derivedDataPath "$DERIVED" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- \
+    DEVELOPMENT_TEAM="$SIGNING_TEAM" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
 SOURCE_APP="$DERIVED/Build/Products/Release/NimBar.app"
 DMG="$OUT/NimBar.dmg"
 ZIP="$OUT/NimBar.zip"
 ditto "$SOURCE_APP" "$APP"
 xattr -cr "$APP"
+codesign --force --deep --sign "$SIGNING_IDENTITY" --keychain "$SIGNING_KEYCHAIN" "$APP"
 codesign --verify --deep --strict "$APP"
 SIGNATURE_INFO=$(codesign -dvvv --requirements - "$APP" 2>&1)
 if printf '%s\n' "$SIGNATURE_INFO" | grep -q 'Signature=adhoc' \

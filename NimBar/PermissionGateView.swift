@@ -35,8 +35,10 @@ struct PermissionGateView: View {
                     }
                 }
                 .labelsHidden().pickerStyle(.segmented).controlSize(.large)
+                .frame(maxWidth: .infinity)
             }
             .padding(14)
+            .frame(maxWidth: .infinity)
             .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
 
             permissionRow(
@@ -53,6 +55,10 @@ struct PermissionGateView: View {
                 actionTitle: L10n.text("Apri Registrazione schermo"),
                 action: accessibility.openScreenCaptureSettings
             )
+            if accessibility.screenCaptureMayNeedRelaunch {
+                Text(L10n.text("Se hai appena autorizzato NimBar ma il permesso non risulta ancora attivo, chiudi e riapri l’app: macOS potrebbe applicare Registrazione schermo al riavvio."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
 
             if accessibility.needsInputAccess {
                 permissionRow(title: L10n.text("Monitoraggio input"),
@@ -81,10 +87,10 @@ struct PermissionGateView: View {
         .frame(width: 740)
         .frame(minHeight: 680)
         .environment(\.locale, store.language.locale)
-        .presentationBackground {
-            WelcomeBlurBackground()
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background {
+            WelcomeBlurBackground().ignoresSafeArea()
         }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -109,7 +115,7 @@ struct PermissionGateView: View {
 
 private struct WelcomeBlurBackground: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = WelcomeVisualEffectView()
+        let view = NSVisualEffectView()
         view.material = .hudWindow
         view.blendingMode = .behindWindow
         view.state = .active
@@ -123,18 +129,5 @@ private struct WelcomeBlurBackground: NSViewRepresentable {
         view.material = .hudWindow
         view.blendingMode = .behindWindow
         view.state = .active
-    }
-}
-
-private final class WelcomeVisualEffectView: NSVisualEffectView {
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        guard let window else { return }
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.contentView?.wantsLayer = true
-        window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
-        window.contentView?.layer?.cornerRadius = 24
-        window.contentView?.layer?.masksToBounds = true
     }
 }

@@ -108,6 +108,7 @@
 "Quando è disattivata, l’icona NimBar resta sempre visibile. Quando è attiva, ricompare insieme alle icone nascoste." = "When off, the NimBar icon stays visible. When on, it reappears with the hidden icons.";
 "Questa app ha più icone nella barra. Per evitare di nasconderle tutte, il trascinamento non ha modificato nulla." = "This app has multiple menu bar icons. Nothing was changed because the selected icon could not be identified unambiguously.";
 "Registrazione schermo" = "Screen Recording";
+"Se hai appena autorizzato NimBar ma il permesso non risulta ancora attivo, chiudi e riapri l’app: macOS potrebbe applicare Registrazione schermo al riavvio." = "If you just allowed NimBar but access still appears unavailable, quit and reopen the app. macOS may apply Screen Recording permission after a restart.";
 "Ricerca all’avvio e ogni 24 ore, download in background e installazione quando le impostazioni sono chiuse e nessun trascinamento è in corso." = "Check at launch and every 24 hours. Download in the background and install when settings are closed and no drag is in progress.";
 "Ricerca all’avvio e ogni 24 ore. Scegli tu quando scaricare e installare." = "Check at launch and every 24 hours. You choose when to download and install.";
 "Ricerca degli aggiornamenti…" = "Checking for updates…";
@@ -139,3 +140,24 @@
 "macOS non ha applicato il nascondimento: %@" = "macOS did not hide the icons: %@";
 "macOS non ha esposto icone accessibili. Processi in esecuzione: %@; gruppi letti: %@. Verifica Accessibilità." = "macOS did not expose accessible icons. Running processes: %@; groups read: %@. Check Accessibility.";
 "È disponibile NimBar %@" = "NimBar %@ is available";
+"Apri GitHub Releases" = "Open GitHub Releases";
+"Apri release su GitHub" = "Open release on GitHub";
+"Nessuna release pubblicata" = "No release has been published";
+"La repository è collegata, ma non è ancora stata pubblicata alcuna release. Controlla di nuovo più tardi o apri la pagina GitHub." = "The repository is connected, but no release has been published yet. Check again later or open the GitHub page.";
+"Versione %@ disponibile. Apri la pagina della release per leggere le note e scaricare manualmente il pacchetto." = "Version %@ is available. Open its release page to read the notes and download the package manually.";
+"Il controllo automatico è disponibile. Download e installazione automatici saranno attivati solo quando i pacchetti potranno essere verificati con una firma sicura." = "Automatic checks are available. Automatic downloads and installation will be enabled only when packages can be verified with a trusted signature.";
+"Risposta GitHub non valida." = "GitHub returned an invalid response.";
+"La release GitHub non usa un formato di versione supportato." = "The GitHub release uses an unsupported version tag format.";
+"L’installazione automatica richiede pacchetti firmati e verificabili. Apri la release GitHub per scaricare manualmente." = "Automatic installation requires signed, verifiable packages. Open the GitHub release to download manually.";
+"GitHub ha restituito l’errore HTTP %@." = "GitHub returned HTTP error %@.";
+"L’installazione automatica sarà disponibile quando NimBar potrà verificare in modo sicuro la firma dei pacchetti." = "Automatic installation will be available when NimBar can securely verify package signatures.";
+
+// Login items and permanent menu bar icon visibility.
+"Nascondi l’icona NimBar dalla barra dei menu" = "Hide the NimBar icon from the menu bar";
+"L’icona resta nascosta anche quando mostri le altre app. Per accedere a NimBar, fai clic destro su uno spazio vuoto della barra oppure riapri l’app da Applicazioni." = "The icon stays hidden even when you reveal other apps. To access NimBar, right-click an empty area of the menu bar or reopen the app from Applications.";
+"Autorizza NimBar negli elementi di login per completare l’attivazione." = "Allow NimBar in Login Items to finish enabling launch at login.";
+"Apri Elementi login" = "Open Login Items";
+"Impossibile aggiornare l’avvio al login: %@" = "Could not update launch at login: %@";
+"Avvio e barra dei menu" = "Startup and menu bar";
+"Il timer parte quando mostri le icone e resta in pausa mentre il puntatore è sulla barra dei menu." = "The timer starts when you reveal the icons and pauses while the pointer is over the menu bar.";
+"Benvenuto e permessi…" = "Welcome and permissions…";

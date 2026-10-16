@@ -23,7 +23,8 @@ Do **not** use this override if macOS says the app is malicious, damaged, or has
 - NimBar requests visibility changes after explicit user actions in Layout or through the live divider.
 - The app uses public Accessibility and ScreenCaptureKit APIs plus undocumented macOS menu bar interfaces for discovery and visibility. Those private interfaces can change without notice.
 - The app is not sandboxed. Review [Privacy](PRIVACY.md) for the data it reads and stores.
-- The current source contains no network updater, telemetry, remote-control listener, or remote command execution path.
+- The update checker makes read-only HTTPS requests to the public GitHub Releases API only after a manual check or when automatic checks are enabled. It does not execute remote commands or download/install release assets. No telemetry or remote-control listener is present.
+- Automatic package installation remains disabled until NimBar can validate package signatures and the app's expected signing identity.
 - The current build's signature is local and does not establish a trusted Developer ID publisher identity.
 
 ## Reporting a vulnerability

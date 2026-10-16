@@ -37,6 +37,7 @@ struct MenuBarCandidate: Identifiable, Hashable, Sendable, Codable {
 final class MenuBarAccessibility: ObservableObject {
     @Published private(set) var isTrusted = AXIsProcessTrusted()
     @Published private(set) var hasScreenCaptureAccess = CGPreflightScreenCaptureAccess()
+    @Published private(set) var screenCaptureMayNeedRelaunch = false
     @Published private(set) var needsInputAccess = false
     @Published private(set) var hasInputAccess = CGPreflightListenEventAccess()
     var requiredPermissionsGranted: Bool { isTrusted && hasScreenCaptureAccess && (!needsInputAccess || hasInputAccess) }
@@ -61,6 +62,7 @@ final class MenuBarAccessibility: ObservableObject {
     private var stableIcons: [String: NSImage] = [:]
     private var savedIconData = UserDefaults.standard.dictionary(forKey: "nativeMenuIconCache.v3") as? [String: Data] ?? [:]
     private var lastCaptureDate = Date.distantPast
+    private var requestedScreenCaptureAccess = false
     private var imageRefreshCompletions: [() -> Void] = []
     private var refreshCompletions: [() -> Void] = []
     private(set) var displayID = CGMainDisplayID()
@@ -141,6 +143,10 @@ final class MenuBarAccessibility: ObservableObject {
         isTrusted = AXIsProcessTrusted()
         hasScreenCaptureAccess = CGPreflightScreenCaptureAccess()
         hasInputAccess = CGPreflightListenEventAccess()
+        if hasScreenCaptureAccess {
+            requestedScreenCaptureAccess = false
+            screenCaptureMayNeedRelaunch = false
+        }
         if !isTrusted { status = LocalizedMessage("Accessibilità necessaria per gestire le icone della barra dei menu.") }
         else if !hasScreenCaptureAccess { status = LocalizedMessage("Concedi Registrazione schermo per vedere le icone originali.") }
         else { status = LocalizedMessage("Accessibilità e Registrazione schermo autorizzate.") }
@@ -153,8 +159,24 @@ final class MenuBarAccessibility: ObservableObject {
     }
 
     func openScreenCaptureSettings() {
+        // Ask TCC through the supported macOS API first. If consent is still
+        // required, the privacy pane provides the user's explicit approval.
+        requestedScreenCaptureAccess = true
+        screenCaptureMayNeedRelaunch = false
+        _ = CGRequestScreenCaptureAccess()
+        refreshPermissionStatus()
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    func refreshPermissionsAfterReturningToApp() {
+        let previouslyHadScreenCaptureAccess = hasScreenCaptureAccess
+        refreshPermissionStatus()
+        if requestedScreenCaptureAccess && !hasScreenCaptureAccess && !previouslyHadScreenCaptureAccess {
+            // Screen Recording may be cached by macOS until the app restarts.
+            // Keep the setting actionable without forcing the user to relaunch.
+            screenCaptureMayNeedRelaunch = true
         }
     }
 

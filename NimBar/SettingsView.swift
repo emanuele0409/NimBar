@@ -9,6 +9,7 @@ struct SettingsView: View {
     @ObservedObject var accessibility: MenuBarAccessibility
     @ObservedObject var layout: MenuBarLayoutController
     @ObservedObject var updater: AppUpdateController
+    @ObservedObject var loginItem: LoginItemController
     let quit: () -> Void
 
     private typealias SettingsSection = SettingsStore.SettingsSection
@@ -69,19 +70,14 @@ struct SettingsView: View {
             }
             .foregroundStyle(.primary)
         }
+        .disabled(store.showPermissionSetup)
         .navigationSplitViewStyle(.balanced)
         // AppKit owns the appearance. A preferredColorScheme presentation
         // override can stick to NSWindow when the preference returns to nil.
         .environment(\.colorScheme, store.effectiveColorScheme)
         .environment(\.locale, store.language.locale)
         .frame(minWidth: 900, minHeight: 620)
-        .sheet(isPresented: $store.showPermissionSetup) {
-            PermissionGateView(store: store, accessibility: accessibility) {
-                store.confirmLanguageChoice()
-                store.showPermissionSetup = false
-            }
-            .interactiveDismissDisabled(false)
-        }
+
     }
 
     private var generalPanel: some View {
@@ -138,11 +134,24 @@ struct SettingsView: View {
             Picker(L10n.text("Intervallo"), selection: $store.autoHideDelay) {
                 ForEach(SettingsStore.AutoHideDelay.allCases) { delay in Text(delay.title).tag(delay) }
             }
-            Toggle(L10n.text("Avvia NimBar al login"), isOn: $store.loginItemEnabled).disabled(true)
-            Toggle(L10n.text("Nascondi completamente l’icona NimBar quando le app sono nascoste"), isOn: $store.hideNimBarIconWhenCollapsed)
-            Text(L10n.text("Quando è disattivata, l’icona NimBar resta sempre visibile. Quando è attiva, ricompare insieme alle icone nascoste."))
-                .font(.caption).foregroundStyle(.secondary)
-            Text(L10n.text("Il nascondimento automatico parte dopo aver aperto la sezione dal pulsante NimBar."))
+            Section(L10n.text("Avvio e barra dei menu")) {
+                Toggle(L10n.text("Avvia NimBar al login"), isOn: Binding(
+                    get: { loginItem.isRegistered }, set: { loginItem.setEnabled($0) }
+                ))
+                if loginItem.needsApproval {
+                    Text(L10n.text("Autorizza NimBar negli elementi di login per completare l’attivazione."))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button(L10n.text("Apri Elementi login")) { loginItem.openSystemSettings() }
+                }
+                if let error = loginItem.errorDescription {
+                    Text(L10n.format("Impossibile aggiornare l’avvio al login: %@", error))
+                        .font(.caption).foregroundStyle(.red)
+                }
+                Toggle(L10n.text("Nascondi l’icona NimBar dalla barra dei menu"), isOn: $store.hideNimBarIcon)
+                Text(L10n.text("L’icona resta nascosta anche quando mostri le altre app. Per accedere a NimBar, fai clic destro su uno spazio vuoto della barra oppure riapri l’app da Applicazioni."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Text(L10n.text("Il timer parte quando mostri le icone e resta in pausa mentre il puntatore è sulla barra dei menu."))
                 .font(.caption).foregroundStyle(.secondary)
             Text(L10n.text("Tieni premuta la combinazione scelta per mostrare il separatore nella barra dei menu; trascina un’icona attraverso la linea per nasconderla o mostrarla."))
                 .font(.caption).foregroundStyle(.secondary)
@@ -230,6 +239,7 @@ struct SettingsView: View {
     private var privacyPanel: some View {
         Form {
                 Section(L10n.text("Permessi richiesti")) {
+                    Button(L10n.text("Benvenuto e permessi…")) { store.showPermissionSetup = true }
                     LabeledContent(L10n.text("Accessibilità"), value: accessibility.isTrusted ? L10n.text("Autorizzata") : L10n.text("Non autorizzata"))
                     LabeledContent(L10n.text("Registrazione schermo"), value: accessibility.hasScreenCaptureAccess ? L10n.text("Autorizzata") : L10n.text("Non autorizzata"))
                     Text(L10n.text("Serve per leggere le icone esposte dalle app. Il nascondimento parte solo dopo un trascinamento esplicito nell’editor Layout."))
@@ -239,6 +249,9 @@ struct SettingsView: View {
                     }
                     if !accessibility.hasScreenCaptureAccess {
                         Button(L10n.text("Apri Registrazione schermo in Impostazioni…")) { accessibility.openScreenCaptureSettings() }
+                    }
+                    if accessibility.screenCaptureMayNeedRelaunch {
+                        Text(L10n.text("Se hai appena autorizzato NimBar ma il permesso non risulta ancora attivo, chiudi e riapri l’app: macOS potrebbe applicare Registrazione schermo al riavvio.")).font(.callout).foregroundStyle(.secondary)
                     }
                 }
                 if accessibility.needsInputAccess {
@@ -292,6 +305,9 @@ struct SettingsView: View {
                         .disabled(!updater.canPerformPrimaryAction)
                         if updater.isWorking { ProgressView().controlSize(.small) }
                     }
+                    Link(destination: updater.releasesURL) {
+                        Label(L10n.text("Apri GitHub Releases"), systemImage: "arrow.up.right.square")
+                    }
                     if let date = updater.lastCheckDate {
                         Text(L10n.format("Ultima verifica: %@", date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(store.language.locale))))
                             .font(.caption).foregroundStyle(.secondary)
@@ -303,11 +319,15 @@ struct SettingsView: View {
                 Picker(L10n.text("Aggiornamenti"), selection: $store.updateMode) {
                     ForEach(SettingsStore.UpdateMode.allCases) { mode in
                         Text(mode.title).tag(mode)
+                            .disabled(mode == .installAutomatically && !updater.supportsAutomaticInstallation)
                     }
                 }
                 Text(store.updateMode.detail)
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if !updater.supportsAutomaticInstallation {
+                    Text(L10n.text("Il controllo automatico è disponibile. Download e installazione automatici saranno attivati solo quando i pacchetti potranno essere verificati con una firma sicura.")).font(.caption).foregroundStyle(.secondary)
+                }
                 if !updater.isConfigured {
                     Text(L10n.text("La scelta viene salvata e sarà utilizzata quando sarà collegata la fonte degli aggiornamenti."))
                         .font(.caption).foregroundStyle(.secondary)

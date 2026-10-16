@@ -3,6 +3,7 @@ import Foundation
 import Combine
 import SwiftUI
 import AppKit
+import ServiceManagement
 
 @MainActor
 final class SettingsStore: ObservableObject {
@@ -51,7 +52,7 @@ final class SettingsStore: ObservableObject {
             switch self {
             case .manual: L10n.text("Gli aggiornamenti vengono cercati solo quando premi Verifica aggiornamenti.")
             case .checkAutomatically: L10n.text("Ricerca all’avvio e ogni 24 ore. Scegli tu quando scaricare e installare.")
-            case .installAutomatically: L10n.text("Ricerca all’avvio e ogni 24 ore, download in background e installazione quando le impostazioni sono chiuse e nessun trascinamento è in corso.")
+            case .installAutomatically: L10n.text("L’installazione automatica sarà disponibile quando NimBar potrà verificare in modo sicuro la firma dei pacchetti.")
             }
         }
     }
@@ -118,16 +119,15 @@ final class SettingsStore: ObservableObject {
     }
     @Published var autoHideEnabled: Bool { didSet { defaults.set(autoHideEnabled, forKey: Keys.autoHideEnabled) } }
     @Published var autoHideDelay: AutoHideDelay { didSet { defaults.set(autoHideDelay.rawValue, forKey: Keys.autoHideDelay) } }
-    @Published var loginItemEnabled: Bool { didSet { defaults.set(loginItemEnabled, forKey: Keys.loginItemEnabled) } }
     @Published var menuBarIconStyle: MenuBarIconStyle {
         didSet {
             defaults.set(menuBarIconStyle.rawValue, forKey: Keys.menuBarIconStyle)
             onMenuBarIconStyleChanged?()
         }
     }
-    @Published var hideNimBarIconWhenCollapsed: Bool {
+    @Published var hideNimBarIcon: Bool {
         didSet {
-            defaults.set(hideNimBarIconWhenCollapsed, forKey: Keys.hideNimBarIconWhenCollapsed)
+            defaults.set(hideNimBarIcon, forKey: Keys.hideNimBarIcon)
             onMenuBarVisibilityChanged?()
         }
     }
@@ -139,16 +139,14 @@ final class SettingsStore: ObservableObject {
     private enum Keys {
         static let autoHideEnabled = "autoHideEnabled"
         static let autoHideDelay = "autoHideDelay"
-        static let loginItemEnabled = "loginItemEnabled"
         static let menuBarIconStyle = "menuBarIconStyle"
         static let hotKeyModifiers = "dividerHotKeyModifiers"
         static let appearanceMode = "nimbarAppearanceMode"
         static let language = "nimbarLanguage"
         static let updateMode = "nimbarUpdateMode"
         static let lastUpdateCheckDate = "nimbarLastUpdateCheckDate"
-        // Start from visible after the migration: old builds could persist the
-        // preference while the native assertion also hid NimBar unexpectedly.
-        static let hideNimBarIconWhenCollapsed = "hideMenuLiteIconWhenCollapsed.v2"
+        // Keep the existing preference while making hiding independent of section state.
+        static let hideNimBarIcon = "hideMenuLiteIconWhenCollapsed.v2"
     }
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -159,11 +157,62 @@ final class SettingsStore: ObservableObject {
         autoHideEnabled = defaults.object(forKey: Keys.autoHideEnabled) as? Bool ?? false
         let raw = defaults.object(forKey: Keys.autoHideDelay) as? Int ?? AutoHideDelay.five.rawValue
         autoHideDelay = AutoHideDelay(rawValue: raw) ?? .five
-        loginItemEnabled = defaults.object(forKey: Keys.loginItemEnabled) as? Bool ?? false
         let storedIconStyle = defaults.string(forKey: Keys.menuBarIconStyle) ?? ""
         menuBarIconStyle = MenuBarIconStyle(rawValue: storedIconStyle) ?? .chevron
-        hideNimBarIconWhenCollapsed = defaults.object(forKey: Keys.hideNimBarIconWhenCollapsed) as? Bool ?? false
+        hideNimBarIcon = defaults.object(forKey: Keys.hideNimBarIcon) as? Bool ?? false
         hotKeyModifiers = defaults.object(forKey: Keys.hotKeyModifiers) as? Int ?? 3
         appearanceMode = AppearanceMode(rawValue: defaults.string(forKey: Keys.appearanceMode) ?? "system") ?? .system
     }
+}
+
+
+@MainActor
+protocol LoginItemServicing {
+    var status: SMAppService.Status { get }
+    func register() throws
+    func unregister() throws
+}
+
+@MainActor
+private final class SystemLoginItemService: LoginItemServicing {
+    var status: SMAppService.Status { SMAppService.mainApp.status }
+    func register() throws { try SMAppService.mainApp.register() }
+    func unregister() throws { try SMAppService.mainApp.unregister() }
+}
+
+/// System registration is the source of truth, including changes in System Settings.
+@MainActor
+final class LoginItemController: ObservableObject {
+    @Published private(set) var status: SMAppService.Status = .notRegistered
+    @Published private(set) var errorDescription: String?
+    private let service: any LoginItemServicing
+
+    var isRegistered: Bool { status == .enabled || status == .requiresApproval }
+    var needsApproval: Bool { status == .requiresApproval }
+
+    init(service: (any LoginItemServicing)? = nil) {
+        self.service = service ?? SystemLoginItemService()
+        refresh()
+    }
+
+    func refresh() { status = service.status }
+
+    func setEnabled(_ enabled: Bool) {
+        refresh()
+        errorDescription = nil
+        do {
+            if enabled && !isRegistered {
+                try service.register()
+            } else if !enabled && isRegistered {
+                try service.unregister()
+            }
+            refresh()
+        } catch {
+            // Reflect the real service even if registration succeeded but approval is pending.
+            refresh()
+            errorDescription = error.localizedDescription
+        }
+    }
+
+    func openSystemSettings() { SMAppService.openSystemSettingsLoginItems() }
 }

@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="GNU GPL version 3">
 </p>
 
-> **Public release coming soon.** NimBar is not yet available for public download. The Releases page is the stable place to check when a release is announced.
+> **Beta available:** [NimBar 0.2.0 beta (build 41)](https://github.com/emanuele0409/NimBar/releases/tag/v0.2.0-beta.41). This build is signed with an Apple Development certificate and is not notarized; read the security notes below before installing.
 
 ## Contents
 
@@ -61,7 +61,7 @@ The app is developed by [emanuele0409](https://github.com/emanuele0409) and is i
 
 macOS may expose several menu bar items for one app but only allow visibility to be changed per app bundle. In that case, the related items move together. Some system items and items that macOS does not expose cannot be managed by NimBar.
 
-Automatic launch at login is not available yet. Update preferences are present, but release discovery, downloading, and installation are not connected in this build.
+Launch at login is available in General settings through macOS Login Items. The switch reflects the system registration and reports any approval still needed. NimBar can check the public GitHub Releases page and open a newer release for manual download. Automatic download and installation are not enabled until package signatures can be validated securely.
 
 ## Screenshots
 
@@ -76,9 +76,7 @@ Planned views:
 
 ## Download
 
-**Public release coming soon.** No DMG or ZIP is published yet.
-
-When a public build is ready, use the [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases). This link will remain stable across versions. Release assets and version details will appear there only after publication.
+Download the **DMG** for the standard drag-to-Applications installation, or the **ZIP** if you prefer to extract the app directly. Both assets are available on the [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases); the page remains the stable link for future versions.
 
 ## Compatibility
 
@@ -94,11 +92,11 @@ Compatibility claims describe the current target and supported release configura
 
 ## Installation
 
-Public downloads are not available yet. When NimBar is released, choose a DMG or ZIP from [GitHub Releases](https://github.com/emanuele0409/NimBar/releases). The full steps are in [Installation](docs/INSTALLATION.md).
+Choose the DMG or ZIP from [GitHub Releases](https://github.com/emanuele0409/NimBar/releases). The full steps are in [Installation](docs/INSTALLATION.md).
 
 ## Opening NimBar for the First Time
 
-The current development build is not notarized by Apple and does not use a Developer ID distribution signature. macOS may therefore block its first launch or say that the developer cannot be verified. Read [Security](SECURITY.md) before opening a future download.
+This beta is signed with an Apple Development certificate. It is not notarized by Apple and does not use a Developer ID distribution signature, so macOS may say that the developer cannot be verified on first launch. Read [Security](SECURITY.md) before opening the download.
 
 Use macOS's **Open Anyway** option only if you trust the source and have verified that you downloaded the intended release. Do not override an alert that says NimBar is malicious, damaged, or has been tampered with. Apple may change the exact wording and location of these controls; see its [macOS 27 instructions](https://support.apple.com/en-gb/guide/mac-help/mh40617/27/mac/27) and [security guidance](https://support.apple.com/it-it/102445).
 
@@ -114,16 +112,16 @@ Grant permissions in System Settings when prompted. You can review or revoke the
 
 ## Privacy & Security
 
-NimBar reads menu bar labels and item metadata locally and captures menu bar pixels for the Layout view. The current code keeps an icon image cache in local app preferences; it does not upload those images. No telemetry, remote control endpoint, or release-check network service is implemented in this build. The update UI is only prepared for a future source and does not download updates today.
+NimBar reads menu bar labels and item metadata locally and captures menu bar pixels for the Layout view. The current code keeps an icon image cache in local app preferences; it does not upload those images. NimBar has no telemetry or remote-control endpoint. Its optional update checker makes read-only requests to the public GitHub Releases API; it sends no account token or menu bar data and does not download or install packages.
 
 The menu bar discovery and visibility implementation uses undocumented macOS interfaces in addition to public frameworks. Apple does not guarantee these interfaces, and a macOS update may change their behaviour. NimBar is not sandboxed. Review [Privacy](PRIVACY.md) and [Security](SECURITY.md) before using it.
 
 ## Updates
 
-- Manual updates: **planned for future releases**.
-- Automatic updates: **planned**.
+- Manual update checks use the public GitHub Releases API. When a newer release is found, NimBar opens its release page so you can review the notes and download it manually.
+- Automatic update checks can be enabled in Settings. Automatic download and installation remain planned until packages can be verified with a trusted signature.
 
-Update settings can be configured in the app, but the GitHub release source is not connected. No update check, download, or installation currently runs. The future design and signing requirements are recorded in [Update Design](docs/UPDATES.md).
+No public release is available yet. See [Update Design](docs/UPDATES.md) for the release tag format and signing requirements.
 
 ## Roadmap
 
@@ -132,7 +130,7 @@ These are planned goals, not release commitments:
 - [ ] Compatibility with macOS 26
 - [ ] Compatibility with macOS 15
 - [ ] Intel support and a Universal Binary (arm64 + x86_64)
-- [ ] Verified updates through GitHub Releases
+- [ ] Secure automatic download and installation through GitHub Releases
 - [ ] Continued stability and performance work
 
 ## Source Code

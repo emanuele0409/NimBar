@@ -73,3 +73,11 @@ Non sono stati verificati tutti gli assetti multischermo, riavvio, sleep/wake, c
 - Suite finale eseguita dopo l’ultima modifica: 28 test XCTest superati.
 - CUA: la copia firmata build 38 si apre in Applicazioni; la lingua già salvata e le sezioni Generali/Info restano operative. Prova visiva disponibile del nuovo tratto durante un drag fisico non eseguita, quindi il movimento e l’inversione sui monitor devono ancora essere confermati dall’utente.
 - App installata, app nel DMG e app nello ZIP verificati con firma rigorosa, versione 0.2.0 build 38 e Team ID Apple Development `L4R3ATNCT8`; hash eseguibile identico e localizzazioni presenti in entrambi i pacchetti. Checksum validi e collegamento `Applications` nel DMG verificato.
+
+## Build 41 — 0.2.0 beta
+
+- Suite XCTest finale: **33 test passati**, nessun errore o test saltato. I nuovi casi verificano registrazione/disattivazione del login, richieste duplicate, approvazione pendente, errori e variazioni esterne del servizio, senza modificare gli elementi di login reali durante i test.
+- Sulla copia Apple Development firmata: il selettore Avvia NimBar al login ha registrato e poi annullato la registrazione nel servizio reale macOS; stato finale ripristinato su disattivato come all’inizio. Non è stato eseguito un logout o riavvio del Mac.
+- CUA: apertura del benvenuto da Privacy, verifica visiva dell’eliminazione del bordo bianco dopo il passaggio a pannello trasparente figlio, cambio Italiano → English → Italiano e chiusura con Continua; le impostazioni tornano interattive.
+- La preferenza di nascondimento dell’icona è indipendente dalla sezione Nascoste, riutilizza la preferenza già salvata e impedisce ai recuperi ritardati di renderla nuovamente visibile. Riaprire l’app accede alle impostazioni.
+- Build Release completata e pacchetti aggiornati. Firma rigorosa verificata sia nell’app del DMG montato sia nella copia estratta dallo ZIP; eseguibile identico, build 41 e collegamento Applications a /Applications. Checksum SHA-256 validi.

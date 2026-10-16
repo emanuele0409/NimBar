@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import XCTest
 import AppKit
+import ServiceManagement
 @testable import NimBar
 
 @MainActor
@@ -8,9 +9,75 @@ final class SettingsStoreTests: XCTestCase {
     func testDefaultsAreSafeAndDisabled() {
         let store = SettingsStore(defaults: makeDefaults())
         XCTAssertFalse(store.autoHideEnabled)
-        XCTAssertFalse(store.loginItemEnabled)
         XCTAssertEqual(store.autoHideDelay, .five)
     }
+    func testLoginRegistrationUsesSystemStatusAndAvoidsDuplicateRequests() {
+        let service = FakeLoginItemService()
+        let controller = LoginItemController(service: service)
+        XCTAssertFalse(controller.isRegistered)
+        controller.setEnabled(true)
+        XCTAssertTrue(controller.isRegistered)
+        XCTAssertEqual(service.registrations, 1)
+        controller.setEnabled(true)
+        XCTAssertEqual(service.registrations, 1)
+        controller.setEnabled(false)
+        XCTAssertFalse(controller.isRegistered)
+        XCTAssertEqual(service.unregistrations, 1)
+    }
+
+    func testLoginApprovalAndExternalChangesAreReflectedWithoutReregistering() {
+        let service = FakeLoginItemService()
+        service.registrationResult = .requiresApproval
+        let controller = LoginItemController(service: service)
+        controller.setEnabled(true)
+        XCTAssertTrue(controller.isRegistered)
+        XCTAssertTrue(controller.needsApproval)
+        controller.setEnabled(true)
+        XCTAssertEqual(service.registrations, 1)
+        service.status = .enabled
+        controller.refresh()
+        XCTAssertFalse(controller.needsApproval)
+        service.status = .notRegistered
+        controller.refresh()
+        XCTAssertFalse(controller.isRegistered)
+        XCTAssertEqual(service.registrations, 1)
+    }
+
+    func testFailedLoginRegistrationDoesNotLeaveTheToggleEnabled() {
+        let service = FakeLoginItemService()
+        service.failure = NSError(domain: "LoginItemTest", code: 1)
+        let controller = LoginItemController(service: service)
+        controller.setEnabled(true)
+        XCTAssertFalse(controller.isRegistered)
+        XCTAssertNotNil(controller.errorDescription)
+        service.failure = nil
+        controller.setEnabled(true)
+        XCTAssertTrue(controller.isRegistered)
+        XCTAssertNil(controller.errorDescription)
+        service.failure = NSError(domain: "LoginItemTest", code: 2)
+        controller.setEnabled(false)
+        XCTAssertTrue(controller.isRegistered)
+        XCTAssertNotNil(controller.errorDescription)
+    }
+
+    func testLoginControllerReadsExistingRegistrationWithoutChangingIt() {
+        let service = FakeLoginItemService()
+        service.status = .enabled
+        let controller = LoginItemController(service: service)
+        XCTAssertTrue(controller.isRegistered)
+        XCTAssertEqual(service.registrations, 0)
+        XCTAssertEqual(service.unregistrations, 0)
+    }
+
+    func testPermanentIconHidingPreservesExistingPreferenceAndCanBeDisabled() {
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: "hideMenuLiteIconWhenCollapsed.v2")
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertTrue(store.hideNimBarIcon)
+        store.hideNimBarIcon = false
+        XCTAssertFalse(SettingsStore(defaults: defaults).hideNimBarIcon)
+    }
+
     func testValuesPersist() {
         let defaults = makeDefaults()
         let first = SettingsStore(defaults: defaults)
@@ -374,4 +441,24 @@ private final class FakeUpdateService: AppUpdateService {
         return URL(fileURLWithPath: "/private/tmp/NimBar-update-test.zip")
     }
     func install(_ release: AppUpdateRelease, downloadedFile: URL) async throws { installs += 1 }
+}
+
+
+@MainActor
+private final class FakeLoginItemService: LoginItemServicing {
+    var status: SMAppService.Status = .notRegistered
+    var registrationResult: SMAppService.Status = .enabled
+    var registrations = 0
+    var unregistrations = 0
+    var failure: Error?
+    func register() throws {
+        registrations += 1
+        if let failure { throw failure }
+        status = registrationResult
+    }
+    func unregister() throws {
+        unregistrations += 1
+        if let failure { throw failure }
+        status = .notRegistered
+    }
 }
