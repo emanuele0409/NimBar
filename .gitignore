@@ -1,0 +1,18 @@
+.DS_Store
+DerivedData/
+build/
+.build/
+*.xcuserstate
+xcuserdata/
+*.dSYM/
+*.xcresult
+
+# Local signing material and per-machine configuration
+*.p12
+*.pfx
+*.key
+*.mobileprovision
+.env
+.env.*
+
+__pycache__/

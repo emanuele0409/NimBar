@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an improvement to NimBar.
+title: "[Feature]: "
+labels: [needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing issues first. Describe the user need; implementation details are optional.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Explain the workflow that is difficult or currently unavailable.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like NimBar to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional approaches or workarounds you have considered.
+    validations:
+      required: false

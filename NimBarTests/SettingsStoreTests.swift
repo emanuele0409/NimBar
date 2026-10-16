@@ -1,0 +1,377 @@
+// SPDX-License-Identifier: GPL-3.0-only
+import XCTest
+import AppKit
+@testable import NimBar
+
+@MainActor
+final class SettingsStoreTests: XCTestCase {
+    func testDefaultsAreSafeAndDisabled() {
+        let store = SettingsStore(defaults: makeDefaults())
+        XCTAssertFalse(store.autoHideEnabled)
+        XCTAssertFalse(store.loginItemEnabled)
+        XCTAssertEqual(store.autoHideDelay, .five)
+    }
+    func testValuesPersist() {
+        let defaults = makeDefaults()
+        let first = SettingsStore(defaults: defaults)
+        first.autoHideEnabled = true
+        first.autoHideDelay = .thirty
+        let second = SettingsStore(defaults: defaults)
+        XCTAssertTrue(second.autoHideEnabled)
+        XCTAssertEqual(second.autoHideDelay, .thirty)
+    }
+    func testInvalidDelayFallsBackToFiveSeconds() {
+        let defaults = makeDefaults()
+        defaults.set(17, forKey: "autoHideDelay")
+        XCTAssertEqual(SettingsStore(defaults: defaults).autoHideDelay, .five)
+    }
+    func testHiddenItemsReturnWhenExpandedButAlwaysHiddenRemainHidden() {
+        let hidden: Set<String> = ["app.hidden"]
+        let alwaysHidden: Set<String> = ["app.always"]
+
+        XCTAssertEqual(MenuBarLayoutController.bundlesToHide(hidden: hidden, alwaysHidden: alwaysHidden, isCollapsed: true),
+                       ["app.hidden", "app.always"])
+        XCTAssertEqual(MenuBarLayoutController.bundlesToHide(hidden: hidden, alwaysHidden: alwaysHidden, isCollapsed: false),
+                       ["app.always"])
+    }
+
+    func testVisibleAndAlwaysHiddenStatesRemainDistinct() {
+        XCTAssertEqual(MenuBarLayoutController.bundlesToHide(hidden: [], alwaysHidden: ["app.always"], isCollapsed: false),
+                       ["app.always"])
+        XCTAssertTrue(MenuBarLayoutController.bundlesToHide(hidden: [], alwaysHidden: [], isCollapsed: true).isEmpty)
+    }
+
+    func testNativeDragResolvesSameOwnerAfterItsGeometricIDChanges() throws {
+        let source = candidate("app.one", x: 130)
+        let moved = candidate("app.one", x: 60)
+        let divider = CGRect(x: 100, y: 0, width: 9, height: 24)
+        let drag = try XCTUnwrap(LiveDividerDragSession(start: CGPoint(x: 140, y: 12), divider: divider,
+            candidates: [source], alwaysHidden: [], ownPID: 999))
+        let drops = drag.drops(at: CGPoint(x: 70, y: 12), divider: divider, candidates: [moved])
+        XCTAssertNotEqual(source.id, moved.id)
+        XCTAssertEqual(drops.count, 1)
+        XCTAssertEqual(drops.first?.candidate.id, moved.id)
+        XCTAssertEqual(drops.first?.zone, .hidden)
+    }
+
+    func testNativeDragUsesCurrentDividerAndCanMakeHiddenItemVisible() throws {
+        let source = candidate("app.one", x: 60)
+        let divider = CGRect(x: 100, y: 0, width: 9, height: 24)
+        let drag = try XCTUnwrap(LiveDividerDragSession(start: CGPoint(x: 70, y: 12), divider: divider,
+            candidates: [source], alwaysHidden: [], ownPID: 999))
+        let currentDivider = CGRect(x: 80, y: 0, width: 9, height: 24)
+        let drops = drag.drops(at: CGPoint(x: 95, y: 12), divider: currentDivider,
+                               candidates: [candidate("app.one", x: 90)])
+        XCTAssertEqual(drops.first?.zone, .visible)
+    }
+
+    func testNativeDragRejectsAmbiguousOwnersAndDesktopDrops() throws {
+        let source = candidate("app.one", x: 130)
+        let divider = CGRect(x: 100, y: 0, width: 9, height: 24)
+        let drag = try XCTUnwrap(LiveDividerDragSession(start: CGPoint(x: 140, y: 12), divider: divider,
+            candidates: [source], alwaysHidden: [], ownPID: 999))
+        XCTAssertTrue(drag.drops(at: CGPoint(x: 70, y: 12), divider: divider,
+            candidates: [source, candidate("app.one", x: 60)]).isEmpty)
+        XCTAssertTrue(drag.drops(at: CGPoint(x: 70, y: 100), divider: divider, candidates: [source]).isEmpty)
+        XCTAssertNil(LiveDividerDragSession(start: CGPoint(x: 140, y: 12), divider: divider,
+            candidates: [source], alwaysHidden: ["app.one"], ownPID: 999))
+    }
+
+    func testNativeHitTestingDoesNotOverlapAdjacentIcons() throws {
+        let first = candidate("app.one", x: 130)
+        let next = candidate("app.two", x: 151)
+        let divider = CGRect(x: 100, y: 0, width: 9, height: 24)
+        let drag = try XCTUnwrap(LiveDividerDragSession(start: CGPoint(x: 149, y: 12), divider: divider,
+            candidates: [first, next], alwaysHidden: [], ownPID: 999))
+        XCTAssertEqual(drag.drops(at: CGPoint(x: 70, y: 12), divider: divider,
+                                  candidates: [first, next]).first?.candidate.bundleIdentifier, "app.one")
+    }
+
+    func testMirroredMenuItemsOnAnotherDisplayDoNotMakeOwnerAmbiguous() throws {
+        let main = candidate("app.one", x: 130)
+        let external = candidate("app.one", x: 2130)
+        let filtered = MenuBarAccessibility.candidates([main, external], on: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+        XCTAssertEqual(filtered.count, 1)
+        XCTAssertEqual(LiveDividerDragSession.resolve(main, in: filtered)?.id, main.id)
+    }
+
+    func testDropOnAnotherDisplayCannotChangeTheSourceSection() throws {
+        let source = candidate("app.one", x: 130)
+        let divider = CGRect(x: 100, y: 0, width: 9, height: 24)
+        let drag = try XCTUnwrap(LiveDividerDragSession(start: CGPoint(x: 140, y: 12), divider: divider,
+            candidates: [source], alwaysHidden: [], ownPID: 999,
+            displayBounds: CGRect(x: 0, y: 0, width: 1920, height: 1080)))
+        XCTAssertTrue(drag.drops(at: CGPoint(x: 2100, y: 12), divider: divider, candidates: [source]).isEmpty)
+    }
+
+    func testMovingNativeDividerReassignsOnlyItemsThatCrossIt() throws {
+        let first = candidate("app.one", x: 60)
+        let second = candidate("app.two", x: 130)
+        let divider = CGRect(x: 100, y: 0, width: 9, height: 24)
+        let drag = try XCTUnwrap(LiveDividerDragSession(start: CGPoint(x: 104, y: 12), divider: divider,
+            candidates: [first, second], alwaysHidden: [], ownPID: 999))
+        let drops = drag.drops(at: CGPoint(x: 160, y: 12), divider: CGRect(x: 156, y: 0, width: 9, height: 24),
+                               candidates: [first, second])
+        XCTAssertEqual(drops.count, 1)
+        XCTAssertEqual(drops.first?.candidate.bundleIdentifier, "app.two")
+        XCTAssertEqual(drops.first?.zone, .hidden)
+    }
+
+    func testLayoutIconNormalizationRemovesTransparentCanvasAndPreservesProportions() throws {
+        let context = try XCTUnwrap(CGContext(data: nil, width: 96, height: 96, bitsPerComponent: 8,
+            bytesPerRow: 384, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.setFillColor(NSColor.black.cgColor)
+        context.fill(CGRect(x: 24, y: 36, width: 48, height: 24))
+        let input = NSImage(cgImage: try XCTUnwrap(context.makeImage()), size: NSSize(width: 96, height: 96))
+        let normalized = try XCTUnwrap(MenuBarAccessibility.normalizedLayoutImage(input))
+        XCTAssertEqual(normalized.size.width, 48, accuracy: 1)
+        XCTAssertEqual(normalized.size.height, 24, accuracy: 1)
+    }
+
+    func testEffectiveColorsFollowAppKitAppearance() throws {
+        let app = NSApplication.shared
+        let oldAppearance = app.appearance
+        defer { app.appearance = oldAppearance }
+        let store = SettingsStore(defaults: makeDefaults())
+        app.appearance = try XCTUnwrap(NSAppearance(named: .aqua))
+        store.updateEffectiveAppearance(app.effectiveAppearance)
+        XCTAssertEqual(store.effectiveColorScheme, .light)
+        app.appearance = nil
+        store.updateEffectiveAppearance(try XCTUnwrap(NSAppearance(named: .darkAqua)))
+        XCTAssertEqual(store.effectiveColorScheme, .dark)
+        store.updateEffectiveAppearance(try XCTUnwrap(NSAppearance(named: .aqua)))
+        XCTAssertEqual(store.effectiveColorScheme, .light)
+    }
+
+    func testProxyGestureKeepsItsDisplayAndRejectsStaleOrAmbiguousOwners() throws {
+        let source = candidate("app.one", x: 2130)
+        let bounds = CGRect(x: 2000, y: 0, width: 1920, height: 1080)
+        let drag = try XCTUnwrap(LiveIconDragSession(source: source, candidates: [source], displayID: 2,
+            displayBounds: bounds, menuBarBounds: CGRect(x: 2000, y: 0, width: 1920, height: 24),
+            dividerX: 2100, start: CGPoint(x: 2140, y: 12), generation: 5, alwaysHidden: [], ownPID: 999))
+        let drop = try XCTUnwrap(drag.drop(at: CGPoint(x: 2070, y: 12), currentDisplay: 2,
+                                         generation: 5, liveCandidates: [source]))
+        XCTAssertEqual(drop.0.frame, source.frame)
+        XCTAssertEqual(drop.1, .hidden)
+        XCTAssertNil(drag.drop(at: CGPoint(x: 2070, y: 12), currentDisplay: 1, generation: 5, liveCandidates: [source]))
+        XCTAssertNil(drag.drop(at: CGPoint(x: 2070, y: 12), currentDisplay: 2, generation: 6, liveCandidates: [source]))
+        XCTAssertNil(drag.drop(at: CGPoint(x: 2070, y: 12), currentDisplay: 2, generation: 5,
+                              liveCandidates: [source, candidate("app.one", x: 2190)]))
+        XCTAssertNil(drag.drop(at: CGPoint(x: 1070, y: 12), currentDisplay: 2, generation: 5, liveCandidates: [source]))
+    }
+
+    func testProxyCannotStartFromAnotherDisplaysCachedIcon() {
+        let stale = candidate("app.one", x: 130)
+        XCTAssertNil(LiveIconDragSession(source: stale, candidates: [stale], displayID: 2,
+            displayBounds: CGRect(x: 2000, y: 0, width: 1920, height: 1080),
+            menuBarBounds: CGRect(x: 2000, y: 0, width: 1920, height: 24), dividerX: 2100,
+            start: CGPoint(x: 140, y: 12), generation: 1, alwaysHidden: [], ownPID: 999))
+        XCTAssertNil(LiveIconDragSession(source: stale, candidates: [stale, candidate("app.overlap", x: 135)], displayID: 1,
+            displayBounds: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            menuBarBounds: CGRect(x: 0, y: 0, width: 1920, height: 24), dividerX: 100,
+            start: CGPoint(x: 140, y: 12), generation: 1, alwaysHidden: [], ownPID: 999))
+    }
+
+    func testUnconfiguredUpdatesKeepPreferencesWithoutInventingACheck() async {
+        let defaults = makeDefaults()
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store.updateMode, .manual)
+        store.updateMode = .installAutomatically
+        XCTAssertEqual(SettingsStore(defaults: defaults).updateMode, .installAutomatically)
+        let updater = AppUpdateController(settings: store)
+        await updater.performPrimaryAction()
+        await updater.automaticTick()
+        XCTAssertEqual(updater.state, .unconfigured)
+        XCTAssertTrue(updater.requestedWithoutSource)
+        XCTAssertNil(updater.lastCheckDate)
+        XCTAssertNil(store.lastUpdateCheckDate)
+    }
+
+    func testAutomaticCheckHonorsDailyCadenceAndDoesNotDownload() async {
+        let store = SettingsStore(defaults: makeDefaults())
+        store.updateMode = .checkAutomatically
+        let service = FakeUpdateService()
+        let updater = AppUpdateController(settings: store, service: service, currentVersion: "0.2.0", currentBuild: 36)
+        let date = Date(timeIntervalSince1970: 1_000_000)
+        await updater.automaticTick(at: date)
+        XCTAssertEqual(updater.primaryActionTitle, L10n.text("Scarica e installa"))
+        await updater.automaticTick(at: date.addingTimeInterval(3600))
+        XCTAssertEqual(service.checks, 1)
+        XCTAssertEqual(service.downloads, 0)
+        XCTAssertEqual(service.installs, 0)
+        await updater.automaticTick(at: date.addingTimeInterval(AppUpdateController.checkInterval))
+        XCTAssertEqual(service.checks, 2)
+    }
+
+    func testAutomaticDownloadWaitsUntilIdleBeforeInstalling() async {
+        let store = SettingsStore(defaults: makeDefaults())
+        store.updateMode = .installAutomatically
+        let service = FakeUpdateService()
+        var idle = false
+        let updater = AppUpdateController(settings: store, service: service, currentVersion: "0.2.0", currentBuild: 36,
+                                          canInstallAutomatically: { idle })
+        await updater.automaticTick()
+        XCTAssertEqual(service.downloads, 1)
+        XCTAssertEqual(service.installs, 0)
+        guard case .readyToInstall = updater.state else { return XCTFail("Update must wait for the user to stop editing") }
+        idle = true
+        await updater.automaticTick()
+        XCTAssertEqual(service.installs, 1)
+        guard case .installed = updater.state else { return XCTFail("Expected an installed update") }
+    }
+
+    func testManualUpdateNeedsExplicitDownloadAndDoesNotOfferOlderBuilds() async {
+        let store = SettingsStore(defaults: makeDefaults())
+        let service = FakeUpdateService()
+        let updater = AppUpdateController(settings: store, service: service, currentVersion: "0.2.0", currentBuild: 36)
+        await updater.automaticTick()
+        XCTAssertEqual(service.checks, 0)
+        await updater.performPrimaryAction()
+        XCTAssertEqual(service.downloads, 0)
+        await updater.performPrimaryAction()
+        XCTAssertEqual(service.downloads, 1)
+        XCTAssertEqual(service.installs, 1)
+        XCTAssertFalse(AppUpdateRelease(version: "0.2.0", build: 35, assetURL: service.release.assetURL)
+            .isNewer(than: "0.2.0", build: 36))
+    }
+
+    func testMouseFilterLatchesEntireGestureWithoutReadingKeyboardEvents() {
+        var route = MenuBarMouseRouting()
+        route.editing = true
+        route.menuBarRegions = [CGRect(x: 100, y: 0, width: 20, height: 24)]
+        XCTAssertTrue(route.shouldConsume(.leftMouseDown, point: CGPoint(x: 110, y: 12), modifiers: 3))
+        // The user can release the shortcut and leave both the icon and display.
+        XCTAssertTrue(route.shouldConsume(.leftMouseDragged, point: CGPoint(x: 2100, y: 900), modifiers: 0))
+        XCTAssertTrue(route.shouldConsume(.leftMouseUp, point: CGPoint(x: 2100, y: 900), modifiers: 0))
+        XCTAssertFalse(route.captured)
+        XCTAssertFalse(route.shouldConsume(.leftMouseDragged, point: CGPoint(x: 110, y: 12), modifiers: 3))
+    }
+
+    func testMouseFilterLeavesNormalReorderingAndOtherControlsAlone() {
+        var route = MenuBarMouseRouting()
+        route.editing = true
+        route.menuBarRegions = [CGRect(x: 100, y: 0, width: 20, height: 24)]
+        XCTAssertFalse(route.shouldConsume(.leftMouseDown, point: CGPoint(x: 110, y: 12), modifiers: 1))
+        XCTAssertFalse(route.shouldConsume(.leftMouseDown, point: CGPoint(x: 300, y: 12), modifiers: 3))
+        XCTAssertFalse(route.shouldConsume(.rightMouseDown, point: CGPoint(x: 110, y: 12), modifiers: 3))
+        XCTAssertFalse(route.shouldConsume(.keyDown, point: CGPoint(x: 110, y: 12), modifiers: 3))
+        route.editing = false
+        XCTAssertFalse(route.shouldConsume(.leftMouseDown, point: CGPoint(x: 110, y: 12), modifiers: 3))
+        route.editing = true
+        route.shortcut = 5
+        XCTAssertTrue(route.shouldConsume(.leftMouseDown, point: CGPoint(x: 110, y: 12), modifiers: 5))
+    }
+
+    func testDividerSlidesOneIconSlotAndReversesAtTheNewBoundary() throws {
+        let source = candidate("app.one", x: 300)
+        let bounds = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        var drag = try XCTUnwrap(LiveIconDragSession(source: source, candidates: [source], displayID: 1,
+            displayBounds: bounds, menuBarBounds: CGRect(x: 0, y: 0, width: 1000, height: 24),
+            dividerX: 200, start: CGPoint(x: 310, y: 12), generation: 1,
+            alwaysHidden: [], ownPID: 999, minimumDividerX: 5, maximumDividerX: 700))
+        XCTAssertEqual(drag.shiftDivider(by: source.frame.width), source.frame.width, accuracy: 0.01)
+        XCTAssertEqual(drag.dividerX, 220, accuracy: 0.01)
+        XCTAssertEqual(drag.preview(at: CGPoint(x: 210, y: 12)), .hidden)
+        XCTAssertEqual(drag.shiftDivider(by: -source.frame.width), -source.frame.width, accuracy: 0.01)
+        XCTAssertEqual(drag.dividerX, 200, accuracy: 0.01)
+        XCTAssertEqual(drag.preview(at: CGPoint(x: 210, y: 12)), .visible)
+        XCTAssertEqual(drag.shiftDivider(by: source.frame.width * 30), 500, accuracy: 0.01)
+        XCTAssertEqual(drag.dividerX, 700, accuracy: 0.01)
+    }
+
+    func testImmediateCrossingReversesWithoutWaitingForMouseUpAndKeepsOffBarState() {
+        var crossing = LiveCrossingState(initialSide: .visible)
+        XCTAssertNil(crossing.cross(to: .visible))
+        XCTAssertEqual(crossing.cross(to: .hidden), .hidden)
+        XCTAssertNil(crossing.cross(to: .hidden))
+        XCTAssertNil(crossing.cross(to: nil))
+        XCTAssertEqual(crossing.side, .hidden)
+        XCTAssertEqual(crossing.cross(to: .visible), .visible)
+        XCTAssertEqual(crossing.cross(to: .hidden), .hidden)
+        XCTAssertEqual(crossing.side, .hidden)
+    }
+
+    func testBlankClickCanRecoverOnlyNimBarEvenWithNoManagedHiddenApps() {
+        XCTAssertTrue(MenuBarRevealPolicy.shouldReveal(isCollapsed: true, hasHiddenItems: false, ownIconHidden: true))
+        XCTAssertTrue(MenuBarRevealPolicy.shouldReveal(isCollapsed: true, hasHiddenItems: true, ownIconHidden: false))
+        XCTAssertFalse(MenuBarRevealPolicy.shouldReveal(isCollapsed: false, hasHiddenItems: true, ownIconHidden: false))
+        XCTAssertFalse(MenuBarRevealPolicy.shouldReveal(isCollapsed: true, hasHiddenItems: false, ownIconHidden: false))
+    }
+
+    func testLanguageStartsEnglishAndSelectionPersistsWithImmediateMessages() {
+        let previous = L10n.language
+        defer { L10n.language = previous }
+        let defaults = makeDefaults()
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store.language, .english)
+        XCTAssertFalse(store.hasLanguageSelection)
+        let message = LocalizedMessage("Trovate %@ icone nella barra macOS.", [.number(12)])
+        XCTAssertEqual(message.text, "Found 12 icons in the macOS menu bar.")
+        var callbacks = 0
+        store.onLanguageChanged = { callbacks += 1 }
+        store.language = .italian
+        XCTAssertEqual(callbacks, 1)
+        XCTAssertEqual(message.text, "Trovate 12 icone nella barra macOS.")
+        XCTAssertEqual(SettingsStore(defaults: defaults).language, .italian)
+        XCTAssertTrue(store.hasLanguageSelection)
+        store.language = .english
+        XCTAssertEqual(message.text, "Found 12 icons in the macOS menu bar.")
+    }
+
+    func testContinueSavesDefaultEnglishWithoutRequiringPickerChange() {
+        let defaults = makeDefaults()
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertFalse(store.hasLanguageSelection)
+        store.confirmLanguageChoice()
+        XCTAssertTrue(SettingsStore(defaults: defaults).hasLanguageSelection)
+        XCTAssertEqual(store.language, .english)
+    }
+
+    func testBothLanguageTablesContainSameKeysAndCompatiblePlaceholders() throws {
+        let englishURL = try XCTUnwrap(L10n.bundle(for: .english).url(forResource: "Localizable", withExtension: "strings"))
+        let italianURL = try XCTUnwrap(L10n.bundle(for: .italian).url(forResource: "Localizable", withExtension: "strings"))
+        func table(_ url: URL) throws -> [String: String] {
+            try XCTUnwrap(PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: String])
+        }
+        let english = try table(englishURL), italian = try table(italianURL)
+        XCTAssertGreaterThan(english.count, 130)
+        XCTAssertEqual(Set(english.keys), Set(italian.keys))
+        for (key, value) in english {
+            XCTAssertEqual(value.components(separatedBy: "%@").count,
+                           italian[key]?.components(separatedBy: "%@").count, key)
+            XCTAssertFalse(value.isEmpty, key)
+        }
+        XCTAssertEqual(L10n.text("Benvenuti in NimBar", language: .english), "Welcome to NimBar")
+        XCTAssertEqual(L10n.text("Icona originale", language: .english), "Original icon")
+        let error = NSError(domain: "NimBar.MenuBarNativeHider", code: 2)
+        XCTAssertEqual(L10n.errorDescription(error, language: .english), "The macOS request timed out; icons were restored.")
+        XCTAssertEqual(L10n.errorDescription(error, language: .italian), "La richiesta macOS è scaduta; le icone sono state ripristinate.")
+    }
+
+    private func candidate(_ bundle: String, x: Double) -> MenuBarCandidate {
+        MenuBarCandidate(id: "\(bundle):\(x)", bundleIdentifier: bundle, applicationName: bundle,
+            label: bundle, identifier: "status", processIdentifier: 123, index: 0,
+            x: x, y: 0, width: 20, height: 24)
+    }
+    private func makeDefaults() -> UserDefaults {
+        let suite = "NimBarTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }
+}
+
+@MainActor
+private final class FakeUpdateService: AppUpdateService {
+    var checks = 0
+    var downloads = 0
+    var installs = 0
+    let release = AppUpdateRelease(version: "0.2.1", build: 37, assetURL: URL(string: "https://example.invalid/NimBar.zip")!)
+    func latestRelease() async throws -> AppUpdateRelease? { checks += 1; return release }
+    func download(_ release: AppUpdateRelease) async throws -> URL {
+        downloads += 1
+        return URL(fileURLWithPath: "/private/tmp/NimBar-update-test.zip")
+    }
+    func install(_ release: AppUpdateRelease, downloadedFile: URL) async throws { installs += 1 }
+}

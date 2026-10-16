@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a reproducible problem with NimBar.
+title: "[Bug]: "
+labels: [needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing issues first. Do not include passwords, tokens, private keys, certificates, or personal information.
+  - type: input
+    id: version
+    attributes:
+      label: NimBar version and build
+      placeholder: "0.2.0 beta (build 38)"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 27.x"
+    validations:
+      required: true
+  - type: dropdown
+    id: architecture
+    attributes:
+      label: Mac architecture
+      options:
+        - Apple Silicon (arm64)
+        - Intel
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the result you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open NimBar...
+        2. Go to...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Relevant permissions
+      description: Say whether Accessibility, Screen Recording, and (if requested) Input Monitoring are enabled.
+    validations:
+      required: false
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Screenshots or logs
+      description: Remove personal information before attaching files. Never attach signing material or credentials.
+    validations:
+      required: false
