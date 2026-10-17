@@ -1,6 +1,6 @@
 # Installation
 
-Public downloads are not available yet. When the first release is published, download NimBar only from the official [GitHub Releases page](https://github.com/emanuele0409/NimBar/releases). No Xcode installation is required for end users.
+Download NimBar only from the official [GitHub Releases page](https://github.com/emanuele0409/NimBar/releases/tag/v0.2.1-beta.46). No Xcode installation is required for end users.
 
 ## DMG
 

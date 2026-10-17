@@ -66,8 +66,8 @@ Manual installation instructions should explain Gatekeeper in a way that matches
 
 ## Remaining work before automatic installation
 
-- [ ] Publish a release only when explicitly requested by the author; no public release currently exists.
-- [ ] Confirm the tag/version/build scheme when preparing the first release and verify beta/stable precedence.
+- [x] Publish the 0.2.1 beta build 46 prerelease as `v0.2.1-beta.46` with the DMG, ZIP, and SHA-256 checksums.
+- [x] Confirm the tag/version/build scheme and beta prerelease status.
 - [ ] Define arm64 asset names. Test an Intel binary in the future before claiming Intel support.
 - [ ] Obtain and validate Developer ID Application signing, Hardened Runtime, Apple notarization, and stapling for the app/DMG; test Gatekeeper on a clean Mac.
 - [ ] Evaluate a current Sparkle 2 release, including compatibility with NimBar's configuration, XPC service, channels, and key management.

@@ -1,10 +1,10 @@
 # Changelog
 
-User-facing highlights. Detailed build notes are maintained during development; a public release will include its final notes on GitHub Releases.
+User-facing highlights. Detailed build notes are maintained during development; public release notes are published on GitHub Releases.
 
 ## Unreleased
 
-The public release is not available yet.
+No unreleased user-facing changes are currently listed.
 
 ## 0.2.1 beta — build 46
 

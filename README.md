@@ -94,11 +94,11 @@ Compatibility claims describe the current target and supported release configura
 
 ## Installation
 
-Public downloads are not available yet. When NimBar is released, choose a DMG or ZIP from [GitHub Releases](https://github.com/emanuele0409/NimBar/releases). The full steps are in [Installation](docs/INSTALLATION.md).
+Download the current beta from [GitHub Releases](https://github.com/emanuele0409/NimBar/releases/tag/v0.2.1-beta.46). Choose the DMG for guided installation or the ZIP for manual installation. See [Installation](docs/INSTALLATION.md) for the steps.
 
 ## Opening NimBar for the First Time
 
-The current development build is not notarized by Apple and does not use a Developer ID distribution signature. macOS may therefore block its first launch or say that the developer cannot be verified. Read [Security](SECURITY.md) before opening a future download.
+This beta is not notarized by Apple and does not use a Developer ID distribution signature. macOS may therefore block its first launch or say that the developer cannot be verified. Read [Security](SECURITY.md) before opening the download.
 
 Use macOS's **Open Anyway** option only if you trust the source and have verified that you downloaded the intended release. Do not override an alert that says NimBar is malicious, damaged, or has been tampered with. Apple may change the exact wording and location of these controls; see its [macOS 27 instructions](https://support.apple.com/en-gb/guide/mac-help/mh40617/27/mac/27) and [security guidance](https://support.apple.com/it-it/102445).
 
@@ -123,7 +123,7 @@ The menu bar discovery and visibility implementation uses undocumented macOS int
 - Manual update checks use the public GitHub Releases API. When a newer release is found, NimBar opens its release page so you can review the notes and download it manually.
 - Automatic update checks can be enabled in Settings. Automatic download and installation remain planned until packages can be verified with a trusted signature.
 
-No public release is available yet. See [Update Design](docs/UPDATES.md) for the release tag format and signing requirements.
+The current public beta is [0.2.1 beta, build 46](https://github.com/emanuele0409/NimBar/releases/tag/v0.2.1-beta.46). See [Update Design](docs/UPDATES.md) for the release tag format and signing requirements.
 
 ## Roadmap
 
