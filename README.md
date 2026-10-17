@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="GNU GPL version 3">
 </p>
 
-> **Beta available:** [NimBar 0.2.0 beta (build 41)](https://github.com/emanuele0409/NimBar/releases/tag/v0.2.0-beta.41). This build is signed with an Apple Development certificate and is not notarized; read the security notes below before installing.
+> **Public release coming soon.** NimBar is not yet available for public download. The Releases page is the stable place to check when a release is announced.
 
 ## Contents
 
@@ -76,7 +76,9 @@ Planned views:
 
 ## Download
 
-Download the **DMG** for the standard drag-to-Applications installation, or the **ZIP** if you prefer to extract the app directly. Both assets are available on the [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases); the page remains the stable link for future versions.
+**Public release coming soon.** No DMG or ZIP is published yet.
+
+When a public build is ready, use the [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases). This link will remain stable across versions. Release assets and version details will appear there only after publication.
 
 ## Compatibility
 
@@ -92,11 +94,11 @@ Compatibility claims describe the current target and supported release configura
 
 ## Installation
 
-Choose the DMG or ZIP from [GitHub Releases](https://github.com/emanuele0409/NimBar/releases). The full steps are in [Installation](docs/INSTALLATION.md).
+Public downloads are not available yet. When NimBar is released, choose a DMG or ZIP from [GitHub Releases](https://github.com/emanuele0409/NimBar/releases). The full steps are in [Installation](docs/INSTALLATION.md).
 
 ## Opening NimBar for the First Time
 
-This beta is signed with an Apple Development certificate. It is not notarized by Apple and does not use a Developer ID distribution signature, so macOS may say that the developer cannot be verified on first launch. Read [Security](SECURITY.md) before opening the download.
+The current development build is not notarized by Apple and does not use a Developer ID distribution signature. macOS may therefore block its first launch or say that the developer cannot be verified. Read [Security](SECURITY.md) before opening a future download.
 
 Use macOS's **Open Anyway** option only if you trust the source and have verified that you downloaded the intended release. Do not override an alert that says NimBar is malicious, damaged, or has been tampered with. Apple may change the exact wording and location of these controls; see its [macOS 27 instructions](https://support.apple.com/en-gb/guide/mac-help/mh40617/27/mac/27) and [security guidance](https://support.apple.com/it-it/102445).
 

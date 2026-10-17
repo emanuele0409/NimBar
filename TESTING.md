@@ -81,3 +81,43 @@ Non sono stati verificati tutti gli assetti multischermo, riavvio, sleep/wake, c
 - CUA: apertura del benvenuto da Privacy, verifica visiva dell’eliminazione del bordo bianco dopo il passaggio a pannello trasparente figlio, cambio Italiano → English → Italiano e chiusura con Continua; le impostazioni tornano interattive.
 - La preferenza di nascondimento dell’icona è indipendente dalla sezione Nascoste, riutilizza la preferenza già salvata e impedisce ai recuperi ritardati di renderla nuovamente visibile. Riaprire l’app accede alle impostazioni.
 - Build Release completata e pacchetti aggiornati. Firma rigorosa verificata sia nell’app del DMG montato sia nella copia estratta dallo ZIP; eseguibile identico, build 41 e collegamento Applications a /Applications. Checksum SHA-256 validi.
+
+## Build 42 — 0.2.1 beta
+
+- Ridisegnata la finestra Impostazioni con uno sfondo blur adattivo a chiaro/scuro/sistema, sidebar integrata e icone di sezione aggiornate.
+- Compattata la pagina Generali in schede senza scorrimento; timer e istruzioni del separatore ora seguono le rispettive impostazioni.
+- Ridisegnate Layout, Privacy, Aggiornamento e Info; aggiunta la scheda Crediti con autore, licenza GPL e collegamento al repository.
+- Il clic destro fa una scansione fresca del display attivo e considera spazio vuoto l’impronta delle icone effettivamente nascoste.
+- Compilazioni Debug e Release completate. Creato e verificato `build/packages/NimBar-0.2.1-beta.dmg`: bundle 0.2.1/build 42, layout Finder e collegamento `Applications` → `/Applications` controllati; checksum SHA-256 salvato accanto al DMG. I test XCTest e la verifica visiva interattiva non sono stati eseguiti per questa modifica.
+- Firma corretta recuperata senza importare o revocare certificati: `security find-identity` nel sandbox restituiva zero identità; con accesso al Portachiavi ne risultano tre. Il certificato originale previsto dal packaging è presente e la relativa chiave privata firma correttamente. La mancanza di accesso al Portachiavi era stata interpretata erroneamente come assenza del certificato.
+- `sh Scripts/package.sh --check-signing` fallisce nel sandbox con una diagnosi specifica e passa con accesso al Portachiavi, dopo aver firmato e verificato un eseguibile temporaneo. Nessun fallback ad hoc o selezione automatica di un altro account.
+- Packaging completo eseguito con certificato SHA-1 `6A1A131688AC29BD01914E366951696097276710`, Team ID `L4R3ATNCT8`, valido fino al 10 settembre 2027. Firma rigorosa verificata sull’app, sul DMG firmato, sull’app estratta dal DMG e dallo ZIP; certificato incorporato confrontato con l’impronta prevista. Il designated requirement coincide con quello di `/Applications/NimBar.app`.
+- `NimBar.dmg`, `NimBar.zip`, `NimBar-0.2.1-beta.dmg` e relativi checksum aggiornati. Il precedente DMG ad hoc 0.2.1 è stato sostituito con quello firmato Apple Development. Questa firma non equivale a Developer ID o notarizzazione.
+
+## Build 43 — 0.2.2 beta
+
+- Il menu contestuale su clic destro viene mostrato solo negli spazi vuoti verificati o sull’impronta di un’icona gestita nascosta. Il controllo Accessibility nativo distingue gli elementi menu sotto il puntatore; se non riesce a identificarli, NimBar non intercetta il clic.
+- Il clic destro sull’icona NimBar continua a mostrare il menu normale. Il clic sinistro negli spazi vuoti mantiene il percorso di recupero delle icone.
+- Build Release completata e pacchetti generati da `Scripts/package.sh`. Firma Apple Development verificata sull’app e sul DMG; l’identità è `Apple Development: emanuele.giuliana612@live.it (C58GK962H9)`, Team ID `L4R3ATNCT8`.
+- `hdiutil verify` conferma l’integrità del DMG. SHA-256 di `build/packages/NimBar.dmg`: `9e8809ccbfb2e681f8c2df2bb35e50dae3a3dd263391d412a381c834650e1fad`.
+- I test XCTest non sono stati eseguiti.
+
+## Build 44 — 0.2.1 beta (versione richiesta per questo pacchetto)
+
+- L’icona selezionata nel riquadro “Icona barra menu” è contenuta in un frame fisso 16 × 16 pt, come le altre opzioni, evitando che l’asset originale mantenga la sua dimensione intrinseca.
+- Release build completata e pacchetti firmati verificati tramite `Scripts/package.sh`; il DMG contiene NimBar 0.2.1/build 44.
+
+## Build 45 — 0.2.1 beta
+
+- Riprodotto il problema in un menu SwiftUI nativo isolato: Chevron 77 × 14 pt, originale 312 × 158 pt. I modificatori della vista non limitavano l’immagine estratta dal menu nativo.
+- La correzione ridimensiona una copia NSImage a un bordo massimo di 16 pt, conservando la rappresentazione ad alta risoluzione e senza modificare l’asset condiviso.
+- `python3 Scripts/check-icon-selector.py` usa direttamente il renderer di SettingsView nel menu nativo: Originale, Chevron, Chevron giù e Punto sono tutti alti 14 pt. Prima della correzione la prova segnalava il selettore originale troppo grande.
+- Compilazione Release e packaging completati; firme dell’app e del DMG e contenuto di DMG/ZIP verificati da `Scripts/package.sh` con il certificato Apple Development originale. Versione bundle 0.2.1, build 45.
+
+## Build 46 — 0.2.1 beta
+
+- Migliorato il contrasto chiaro con un velo bianco traslucido sul blur nativo, testo principale scuro, descrizioni più marcate, messaggi verde/arancio più scuri e contorni delle schede più visibili. La selezione nella sidebar usa un blu più scuro. Benvenuto e Crediti condividono lo sfondo adattivo.
+- Anteprime dei componenti reali renderizzate con NSHostingView in chiaro, scuro e nuovamente chiaro; le due immagini chiare sono identiche. Verifica del contrasto sRGB sullo sfondo minimo previsto dal velo bianco: testo principale 9,29:1, secondario 5,23:1, successo 4,95:1, avviso 4,65:1. Sono verifiche dei componenti e della palette, non una prova interattiva dell’intera app su ogni sfondo.
+- Il controllo regressione del selettore icone passa: tutte le scelte mantengono 14 pt di altezza.
+- Build Release completata, firma Apple Development originale e contenuto di DMG/ZIP verificati da `Scripts/package.sh`; bundle 0.2.1, build 46. Checksum SHA-256 dei pacchetti validi.
+- Una prova della pulizia con file temporanei verifica che soltanto i vecchi archivi NimBar versionati e i loro checksum siano rimossi. La cartella finale contiene un solo DMG, un solo ZIP e `SHA256SUMS.txt`; i metadati Finder sono preservati.

@@ -2,13 +2,13 @@
 
 NimBar checks the public GitHub Releases API at `https://api.github.com/repos/emanuele0409/NimBar/releases?per_page=30` using HTTPS. A manual check is available in the app; automatic checks run at launch and every 24 hours only when selected in Update settings. The client sends no account token, preferences, menu-bar data, or user identifier.
 
-When a newer supported release is found, NimBar opens its GitHub release page so the user can read release notes and download the package manually. The first public beta is `v0.2.0-beta.41`. NimBar does **not** download or install packages automatically: that path remains disabled until the packages have a verifiable signing identity and a secure installer.
+When a newer supported release is found, NimBar opens its GitHub release page so the user can read release notes and download the package manually. No release has been published yet. NimBar does **not** download or install packages automatically: that path remains disabled until the packages have a verifiable signing identity and a secure installer.
 
 ## Verified repository state
 
 The following points were checked in the current repository source and packaging script; they describe this checkout, not a published build:
 
-- The Xcode project declares version `0.2.0`, build `41`, beta release channel, macOS deployment target `27.0`, and bundle identifier `com.nimbar.NimBar`.
+- The Xcode project declares version `0.2.1`, build `46`, beta release channel, macOS deployment target `27.0`, and bundle identifier `com.nimbar.NimBar`.
 - `GitHubReleaseService` performs a read-only request for the newest 30 published releases. It ignores drafts and unsupported version tags. It recognizes `vMAJOR.MINOR.PATCH` and `vMAJOR.MINOR.PATCH-beta.BUILD`; the beta suffix must agree with GitHub's prerelease flag.
 - Release asset URLs are not downloaded by the app. The app opens only an HTTPS release page hosted at `github.com/emanuele0409/NimBar/releases/`.
 - The local packaging script asks Xcode to use an `Apple Development` signing identity, verifies the signature and Team ID, and does not notarize the package.
@@ -29,7 +29,7 @@ The current app identifies itself as a **beta** build in its bundle metadata. Be
 
 The app compares the numeric `CFBundleShortVersionString`, then compares the beta build suffix when versions match. A stable release sorts after a prerelease with the same version. Do not use release titles or publication dates for version ordering. [Semantic Versioning 2.0.0](https://semver.org/).
 
-Use tags `vMAJOR.MINOR.PATCH` for stable and `vMAJOR.MINOR.PATCH-beta.BUILD` for beta. The beta suffix is the app's build number. For example, app version `0.2.0`, build `41` uses tag `v0.2.0-beta.41` and the GitHub prerelease checkbox must be enabled. Stable releases must omit the suffix and have the prerelease checkbox disabled.
+Use tags `vMAJOR.MINOR.PATCH` for stable and `vMAJOR.MINOR.PATCH-beta.BUILD` for beta. The beta suffix is the app's build number. For example, app version `0.2.1`, build `46` uses tag `v0.2.1-beta.46` and the GitHub prerelease checkbox must be enabled. Stable releases must omit the suffix and have the prerelease checkbox disabled.
 
 ## Asset selection and downloads
 
@@ -66,7 +66,7 @@ Manual installation instructions should explain Gatekeeper in a way that matches
 
 ## Remaining work before automatic installation
 
-- [x] Publish beta `v0.2.0-beta.41` with verified DMG and ZIP assets.
+- [ ] Publish a release only when explicitly requested by the author; no public release currently exists.
 - [ ] Confirm the tag/version/build scheme when preparing the first release and verify beta/stable precedence.
 - [ ] Define arm64 asset names. Test an Intel binary in the future before claiming Intel support.
 - [ ] Obtain and validate Developer ID Application signing, Hardened Runtime, Apple notarization, and stapling for the app/DMG; test Gatekeeper on a clean Mac.

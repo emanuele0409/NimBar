@@ -3,10 +3,12 @@ import SwiftUI
 import AppKit
 
 struct PermissionGateView: View {
-    @Environment(\.colorScheme) private var colorScheme
+    private var colorScheme: ColorScheme { store.effectiveColorScheme }
     @ObservedObject var store: SettingsStore
     @ObservedObject var accessibility: MenuBarAccessibility
     let dismiss: () -> Void
+
+    private var secondaryText: Color { NimBarAppearance.secondaryText(for: colorScheme) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -21,7 +23,7 @@ struct PermissionGateView: View {
                 Text(L10n.text("Benvenuti in NimBar"))
                     .font(.largeTitle.weight(.semibold))
                 Text("emanuele0409")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .font(.subheadline).foregroundStyle(secondaryText)
             }
             .frame(maxWidth: .infinity)
             Text(L10n.text("NimBar ti aiuta a tenere ordinata la barra dei menu di macOS. Puoi nascondere le icone che usi meno e mostrarle di nuovo quando vuoi, con un separatore trascinabile e controlli rapidi."))
@@ -57,7 +59,7 @@ struct PermissionGateView: View {
             )
             if accessibility.screenCaptureMayNeedRelaunch {
                 Text(L10n.text("Se hai appena autorizzato NimBar ma il permesso non risulta ancora attivo, chiudi e riapri l’app: macOS potrebbe applicare Registrazione schermo al riavvio."))
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(secondaryText)
             }
 
             if accessibility.needsInputAccess {
@@ -68,11 +70,11 @@ struct PermissionGateView: View {
             }
 
             Text(L10n.text("Per funzionare, NimBar ha bisogno di questi permessi. I pulsanti aprono la sezione corretta di Impostazioni di Sistema; abilita NimBar e poi torna qui."))
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
-                Text(accessibility.message).font(.caption).foregroundStyle(.secondary)
+                Text(accessibility.message).font(.caption).foregroundStyle(secondaryText)
                 Spacer()
                 Button(accessibility.requiredPermissionsGranted ? L10n.text("Continua") : L10n.text("Più tardi"), action: dismiss)
                     .buttonStyle(.borderedProminent)
@@ -88,8 +90,10 @@ struct PermissionGateView: View {
         .frame(minHeight: 680)
         .environment(\.locale, store.language.locale)
         .background {
-            WelcomeBlurBackground().ignoresSafeArea()
+            WindowBlurBackground().ignoresSafeArea()
         }
+        .foregroundStyle(NimBarAppearance.primaryText(for: store.effectiveColorScheme))
+        .environment(\.colorScheme, store.effectiveColorScheme)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -98,10 +102,10 @@ struct PermissionGateView: View {
                                actionTitle: String, action: @escaping () -> Void) -> some View {
         HStack(spacing: 10) {
             Image(systemName: isGranted ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isGranted ? .green : .secondary)
+                .foregroundStyle(isGranted ? NimBarAppearance.success(for: colorScheme) : secondaryText)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                Text(detail).font(.caption).foregroundStyle(.secondary)
+                Text(detail).font(.caption).foregroundStyle(secondaryText)
             }
             Spacer()
             if !isGranted {
@@ -110,24 +114,5 @@ struct PermissionGateView: View {
         }
         .padding(12)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
-    }
-}
-
-private struct WelcomeBlurBackground: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .hudWindow
-        view.blendingMode = .behindWindow
-        view.state = .active
-        view.wantsLayer = true
-        view.layer?.cornerRadius = 24
-        view.layer?.masksToBounds = true
-        return view
-    }
-
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {
-        view.material = .hudWindow
-        view.blendingMode = .behindWindow
-        view.state = .active
     }
 }

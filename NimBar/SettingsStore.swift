@@ -24,6 +24,7 @@ final class SettingsStore: ObservableObject {
     }
 
     @Published var showPermissionSetup = false
+    @Published var showsCreditsSheet = false
     @Published var language: AppLanguage {
         didSet {
             defaults.set(language.rawValue, forKey: Keys.language)

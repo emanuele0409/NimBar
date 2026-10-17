@@ -105,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         accessibility.refreshPermissionStatus()
         if accessibility.isTrusted { liveEditor?.prepareInput() }
         // Show the welcome/permissions screen once for each app version.
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.0"
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.1"
         let permissionSetupKey = "didShowNimBarWelcome.\(version)"
         let shouldShowPermissionSetup = !UserDefaults.standard.bool(forKey: permissionSetupKey) || !settings.hasLanguageSelection
         UserDefaults.standard.set(true, forKey: permissionSetupKey)
@@ -217,9 +217,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     private func showMenuForBlankMenuBarRightClick(at location: NSPoint) {
-        guard !dividerModifiersActive, liveEditor?.isBusy != true,
-              isBlankMenuBarLocation(location), let statusMenu else { return }
-        statusMenu.popUp(positioning: nil, at: location, in: nil)
+        guard !dividerModifiersActive, liveEditor?.isBusy != true, let statusMenu,
+              let screen = NSScreen.screens.first(where: { $0.frame.contains(location) }),
+              menuBarRect(on: screen)?.contains(location) == true,
+              let displayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return }
+        let displayID = CGDirectDisplayID(displayNumber.uint32Value)
+        blankClickGeneration += 1
+        let token = blankClickGeneration
+        dividerAccessibility.selectDisplay(displayID)
+        dividerAccessibility.refresh { [weak self] in
+            guard let self, token == self.blankClickGeneration,
+                  !self.dividerModifiersActive, self.liveEditor?.isBusy != true,
+                  self.dividerAccessibility.displayID == displayID,
+                  self.canOpenMenuForRightClick(at: location) else { return }
+            statusMenu.popUp(positioning: nil, at: location, in: nil)
+        }
+    }
+
+    private func canOpenMenuForRightClick(at location: NSPoint) -> Bool {
+        guard isBlankMenuBarLocation(location),
+              let screen = NSScreen.screens.first(where: { $0.frame.contains(location) }),
+              let point = accessibilityPoint(for: location, on: screen) else { return false }
+
+        switch MenuBarAccessibility.menuBarHitTest(at: point) {
+        case .empty:
+            return true
+        case .unavailable:
+            // A failed or incomplete hit test must never steal a system item's click.
+            return false
+        case .item(let processIdentifier):
+            // macOS may still expose the old accessibility target of a managed
+            // item after NimBar hides it. Only that exact hidden footprint is
+            // allowed to open NimBar's menu.
+            return dividerAccessibility.liveItems.contains { candidate in
+                candidate.processIdentifier == processIdentifier
+                    && (layout.isAlwaysHidden(candidate)
+                        || (layout.isCollapsed && layout.hiddenBundleIDs.contains(candidate.bundleIdentifier)))
+                    && candidate.frame.insetBy(dx: -3, dy: -3).contains(point)
+            }
+        }
     }
 
     private func isBlankMenuBarLocation(_ location: NSPoint) -> Bool {
@@ -232,20 +268,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
            window.convertToScreen(button.convert(button.bounds, to: nil)).contains(location) {
             return false
         }
-        guard let displayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return false }
+        guard let pointInAccessibilitySpace = accessibilityPoint(for: location, on: screen) else { return false }
+        let isCurrentlyHidden: (MenuBarCandidate) -> Bool = { [layout] candidate in
+            layout.isAlwaysHidden(candidate)
+                || (layout.isCollapsed && layout.hiddenBundleIDs.contains(candidate.bundleIdentifier))
+        }
+        let hiddenItemOccupiesPoint = dividerAccessibility.liveItems.contains { candidate in
+            isCurrentlyHidden(candidate)
+                && candidate.frame.insetBy(dx: -3, dy: -3).contains(pointInAccessibilitySpace)
+        }
+        // macOS may keep reporting the old bounds of an item that NimBar has
+        // hidden. Treat that footprint as an available empty reveal target.
+        if !hiddenItemOccupiesPoint {
+            if dividerAccessibility.liveItems.contains(where: { candidate in
+                !isCurrentlyHidden(candidate)
+                    && candidate.frame.insetBy(dx: -3, dy: -3).contains(pointInAccessibilitySpace)
+            }) { return false }
+
+            if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+               MenuBarAccessibility.applicationMenuBarFrames(processIdentifier: frontmostPID)
+                .contains(where: { $0.insetBy(dx: -2, dy: -2).contains(pointInAccessibilitySpace) }) { return false }
+        }
+        return true
+    }
+
+    private func accessibilityPoint(for location: NSPoint, on screen: NSScreen) -> CGPoint? {
+        guard let displayNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
         let displayBounds = CGDisplayBounds(CGDirectDisplayID(displayNumber.uint32Value))
-        let pointInAccessibilitySpace = CGPoint(
+        return CGPoint(
             x: displayBounds.minX + location.x - screen.frame.minX,
             y: displayBounds.minY + screen.frame.maxY - location.y
         )
-        if dividerAccessibility.liveItems.contains(where: { candidate in
-            candidate.frame.insetBy(dx: -3, dy: -3).contains(pointInAccessibilitySpace)
-        }) { return false }
-
-        if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-           MenuBarAccessibility.applicationMenuBarFrames(processIdentifier: frontmostPID)
-            .contains(where: { $0.insetBy(dx: -2, dy: -2).contains(pointInAccessibilitySpace) }) { return false }
-        return true
     }
 
     private func updateStatusItemImage() {
@@ -316,7 +369,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     private func updateResolvedAppearance() {
         settings.updateEffectiveAppearance(NSApp.effectiveAppearance)
-        settingsWindow?.backgroundColor = settings.effectiveColorScheme == .light ? .white : .windowBackgroundColor
+        settingsWindow?.backgroundColor = .clear
         updateStatusItemImage()
     }
 
@@ -407,11 +460,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let window = NSWindow(contentViewController: hosting)
         window.title = L10n.text("NimBar — Impostazioni")
         window.setContentSize(NSSize(width: 960, height: 680))
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.titlebarAppearsTransparent = false
+        window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.isOpaque = true
-        window.backgroundColor = settings.effectiveColorScheme == .light ? .white : .windowBackgroundColor
+        window.isOpaque = false
+        window.backgroundColor = .clear
         window.center()
         window.isReleasedWhenClosed = false
         settingsWindow = window

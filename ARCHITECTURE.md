@@ -35,6 +35,8 @@ Il Layout resta fissato al display principale. La linea live segue invece il dis
 
 ## Packaging DMG
 
+Il packaging fissa l’identità originale Apple Development per impronta SHA-1 e Team ID. Prima della compilazione, `Scripts/package.sh --check-signing` verifica la visibilità nel Portachiavi e firma realmente un eseguibile temporaneo: evita di confondere un certificato senza chiave privata con un’identità utilizzabile. Nel sandbox l’elenco delle identità può risultare vuoto; va ripetuto con accesso al Portachiavi prima di importare o revocare certificati. Non esiste un fallback ad hoc. Il packaging confronta il certificato incorporato, firma anche il DMG e verifica le copie estratte da DMG e ZIP prima di sostituire gli output precedenti.
+
 La finestra misura 582 × 300 punti; icone da 100 punti alle posizioni (150, 150) e (436, 150), con freccia centrale su sfondo Retina generato in fase di build. Il collegamento `Applications` punta a `/Applications`. I metadati `.DS_Store` sono scritti direttamente con i soli strumenti di build MIT `ds_store 1.3.3` e `mac_alias 2.2.2`, vendorizzati con licenze in `Scripts/vendor`; questi non entrano nell’app. Non si modifica FinderInfo del bundle firmato.
 
 La qualità di cattura è `best` e il canvas richiesto è almeno 2×. La geometria continua a provenire dallo schermo modificato; per il solo Layout si preferisce la replica dello stesso proprietario e identificatore su uno schermo Retina. Associazioni ambigue non vengono usate e una nuova cattura 1× non degrada una cache 2×.
@@ -47,10 +49,18 @@ Riferimento per misure e disposizione dell’installer: [workflow di packaging T
 
 Le due tabelle Localizable.strings sono risorse native del bundle. `L10n` sceglie esplicitamente il bundle senza alterare la lingua globale del sistema. `LocalizedMessage` conserva chiave e argomenti: anche un messaggio già visualizzato cambia lingua senza una nuova scansione. SwiftUI osserva la preferenza e aggiorna il locale; una callback aggiorna titoli AppKit, tooltip e menu esistenti senza ricreare NSStatusItem. Nomi e descrizioni restituiti dalle altre app restano nella lingua originale del sistema. Gli errori del bridge NimBar sono tradotti per codice; gli errori di sistema restano nella lingua scelta da macOS.
 
-## Avvio, icona e benvenuto — build 41
+## Contrasto e sfondo adattivo — build 46
+
+`WindowBlurBackground` combina un NSVisualEffectView con un velo bianco al 76% soltanto in modalità chiara. La vista nativa riceve esplicitamente Aqua o Dark Aqua, anche dopo un cambio di modalità. Impostazioni, Crediti e Benvenuto condividono lo stesso sfondo; la finestra resta trasparente per evitare fondi incoerenti durante il cambio tema.
+
+`NimBarAppearance` centralizza i colori del testo e dei messaggi di stato. In chiaro usa colori sRGB scuri per limitare la dipendenza dal wallpaper; le schede aggiungono un riempimento bianco traslucido e un bordo più visibile. In modalità Sistema viene usato il color scheme effettivo già mantenuto da SettingsStore.
+
+## Avvio, icona e benvenuto — build 42
 
 `LoginItemController` usa il servizio pubblico `SMAppService.mainApp`: legge lo stato reale all’avvio e quando l’app torna attiva, registra o annulla la registrazione solo su richiesta dell’utente e mostra errori e approvazioni pendenti. Il servizio è sostituibile nei test; i test non registrano elementi di login reali. La vecchia preferenza locale non è più usata come conferma di registrazione.
 
 La preferenza di nascondimento dell’icona NimBar ora rimuove lo status item indipendentemente dallo stato della sezione Nascoste. Mantiene la chiave delle preferenze esistente per compatibilità. Riaprire l’app mostra le impostazioni anche con l’icona rimossa; resta disponibile il menu contestuale negli spazi vuoti della barra. Cambiare questa preferenza non riapplica le asserzioni native sulle altre app. I tentativi ritardati di recupero della visibilità sono annullabili e rispettano la scelta corrente.
 
-Il benvenuto è un `NSPanel` senza cornice, collegato come finestra figlia alle Impostazioni, senza la decorazione aggiuntiva dei fogli nativi, con sfondo trasparente e un `NSVisualEffectView` che copre l’intero contenuto arrotondato. La finestra principale conserva la titlebar opaca. I timer e i monitor di input vengono rimossi alla chiusura del processo; il timer di nascondimento si interrompe quando la sezione è già chiusa e resta in pausa durante il menu NimBar.
+Il benvenuto è un `NSPanel` senza cornice, collegato come finestra figlia alle Impostazioni, senza la decorazione aggiuntiva dei fogli nativi, con sfondo trasparente e un `NSVisualEffectView` che copre l’intero contenuto arrotondato. La finestra principale usa una titlebar trasparente e un materiale blur condiviso da sidebar e pannello, che segue l’aspetto chiaro, scuro o di sistema. Le sezioni sono disegnate da una sidebar SwiftUI condivisa, senza la colonna separata del `NavigationSplitView`. I timer e i monitor di input vengono rimossi alla chiusura del processo; il timer di nascondimento si interrompe quando la sezione è già chiusa e resta in pausa durante il menu NimBar.
+
+La pagina Generali usa schede compatte senza contenitore scorrevole; ogni descrizione resta vicina al relativo controllo. La scheda Info include crediti, sviluppatore, licenza e collegamento al repository.

@@ -205,7 +205,7 @@ final class AppUpdateController: ObservableObject {
     var releasesURL: URL { GitHubReleaseService.releasesURL }
 
     init(settings: SettingsStore, service: (any AppUpdateService)? = nil,
-         currentVersion: String = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.0",
+         currentVersion: String = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.1",
          currentBuild: Int = Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0") ?? 0,
          currentIsPrerelease: Bool = Bundle.main.infoDictionary?["NIMBARReleaseChannel"] as? String != "stable",
          canInstallAutomatically: @escaping () -> Bool = { false }) {
