@@ -120,6 +120,24 @@ final class SettingsStore: ObservableObject {
     }
     @Published var autoHideEnabled: Bool { didSet { defaults.set(autoHideEnabled, forKey: Keys.autoHideEnabled) } }
     @Published var autoHideDelay: AutoHideDelay { didSet { defaults.set(autoHideDelay.rawValue, forKey: Keys.autoHideDelay) } }
+    @Published var menuBarSwipeEnabled: Bool {
+        didSet {
+            defaults.set(menuBarSwipeEnabled, forKey: Keys.menuBarSwipeEnabled)
+            onSwipePreferencesChanged?()
+        }
+    }
+    @Published var showSwipeDirection: MenuBarSwipeDirection {
+        didSet {
+            defaults.set(showSwipeDirection.rawValue, forKey: Keys.showSwipeDirection)
+            onSwipePreferencesChanged?()
+        }
+    }
+    // Persist one direction so the two actions can never share a gesture.
+    var hideSwipeDirection: MenuBarSwipeDirection { showSwipeDirection.opposite }
+    func setHideSwipeDirection(_ direction: MenuBarSwipeDirection) {
+        showSwipeDirection = direction.opposite
+    }
+    var onSwipePreferencesChanged: (() -> Void)?
     @Published var menuBarIconStyle: MenuBarIconStyle {
         didSet {
             defaults.set(menuBarIconStyle.rawValue, forKey: Keys.menuBarIconStyle)
@@ -140,6 +158,8 @@ final class SettingsStore: ObservableObject {
     private enum Keys {
         static let autoHideEnabled = "autoHideEnabled"
         static let autoHideDelay = "autoHideDelay"
+        static let menuBarSwipeEnabled = "menuBarSwipeEnabled"
+        static let showSwipeDirection = "menuBarShowSwipeDirection"
         static let menuBarIconStyle = "menuBarIconStyle"
         static let hotKeyModifiers = "dividerHotKeyModifiers"
         static let appearanceMode = "nimbarAppearanceMode"
@@ -158,6 +178,8 @@ final class SettingsStore: ObservableObject {
         autoHideEnabled = defaults.object(forKey: Keys.autoHideEnabled) as? Bool ?? false
         let raw = defaults.object(forKey: Keys.autoHideDelay) as? Int ?? AutoHideDelay.five.rawValue
         autoHideDelay = AutoHideDelay(rawValue: raw) ?? .five
+        menuBarSwipeEnabled = defaults.bool(forKey: Keys.menuBarSwipeEnabled)
+        showSwipeDirection = MenuBarSwipeDirection(rawValue: defaults.string(forKey: Keys.showSwipeDirection) ?? "") ?? .left
         let storedIconStyle = defaults.string(forKey: Keys.menuBarIconStyle) ?? ""
         menuBarIconStyle = MenuBarIconStyle(rawValue: storedIconStyle) ?? .chevron
         hideNimBarIcon = defaults.object(forKey: Keys.hideNimBarIcon) as? Bool ?? false

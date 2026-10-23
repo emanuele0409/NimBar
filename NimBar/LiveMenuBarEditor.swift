@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import AppKit
 import SwiftUI
+import QuartzCore
 
 /// A gesture owns one real display snapshot until mouseUp. Cached Layout
 /// placeholders and a later pointer/display switch cannot change its source.
@@ -10,6 +11,7 @@ struct LiveIconDragSession {
     let displayBounds: CGRect
     let menuBarBounds: CGRect
     var dividerX: CGFloat
+    let initialDividerX: CGFloat
     let minimumDividerX: CGFloat
     let maximumDividerX: CGFloat
     let start: CGPoint
@@ -30,6 +32,7 @@ struct LiveIconDragSession {
         self.displayBounds = displayBounds
         self.menuBarBounds = menuBarBounds
         self.dividerX = dividerX
+        self.initialDividerX = dividerX
         self.minimumDividerX = minimumDividerX ?? (displayBounds.minX + 5)
         self.maximumDividerX = maximumDividerX ?? (displayBounds.isEmpty ? .greatestFiniteMagnitude : displayBounds.maxX - 5)
         self.start = start
@@ -87,6 +90,14 @@ final class LiveMenuBarEditor {
     private var markerPanel: LiveEditorPanel?
     private var markerView: LiveDividerMarkerView?
     private var ghostPanel: LiveEditorPanel?
+    private var ghostSize = CGSize(width: 24, height: 24)
+    private var reflowSurface: LiveMenuBarReflowSurface?
+    private var reflowPanel: LiveEditorPanel?
+    private var reflowView: LiveMenuBarReflowView?
+    private var surfaceCapturePending = false
+    private var surfaceRevision = 0
+    private var visualRevision = 0
+    private var settling = false
     private var session: LiveIconDragSession?
     private var crossing = LiveCrossingState(initialSide: nil)
     private var lastRefresh = Date.distantPast
@@ -94,7 +105,7 @@ final class LiveMenuBarEditor {
     var onInputAvailabilityChanged: ((Bool) -> Void)?
     var onBlankMouseDown: ((CGPoint) -> Void)?
 
-    var isBusy: Bool { session != nil || filter.routing.captured }
+    var isBusy: Bool { session != nil || filter.routing.captured || settling }
 
     init(access: MenuBarAccessibility, layout: MenuBarLayoutController,
          onBegin: @escaping () -> Void, onEnd: @escaping () -> Void, onCommit: @escaping () -> Void) {
@@ -158,6 +169,9 @@ final class LiveMenuBarEditor {
         access.selectDisplay(selected)
         markerPanel?.orderOut(nil)
         markerFrame = .zero
+        surfaceRevision += 1
+        reflowSurface = nil
+        surfaceCapturePending = false
         snapshot = []
         refreshPending = false
         lastRefresh = Date()
@@ -218,10 +232,48 @@ final class LiveMenuBarEditor {
                 self.markerPanel?.animator().alphaValue = 1
             }
         }
+        prepareReflowSurface(display: display, bar: bar, firstSystemX: firstSystemX)
+    }
+
+    private func prepareReflowSurface(display: CGDirectDisplayID,
+                                      bar: CGRect, firstSystemX: CGFloat) {
+        let apps = snapshot.filter { !$0.isSystemOwned && !$0.isLiveDivider && !layout.isAlwaysHidden($0) }
+        let signature = LiveMenuBarReflowSurface.signature(for: apps)
+        guard !surfaceCapturePending, reflowSurface?.signature != signature,
+              let firstAppX = apps.map(\.frame.minX).min() else { return }
+        let bounds = CGDisplayBounds(display)
+        let menuEnd = NSWorkspace.shared.frontmostApplication.map {
+            MenuBarAccessibility.applicationMenuBarFrames(processIdentifier: $0.processIdentifier)
+                .filter { bounds.contains(CGPoint(x: $0.midX, y: $0.midY)) }.map(\.maxX).max()
+        } ?? nil
+        let maximumSlot = apps.map(\.width).max() ?? 24
+        // Never mask application menus or the first immovable system item.
+        let left = max(bounds.minX + 1, menuEnd.map { $0 + 2 } ?? firstAppX - 2,
+                       firstAppX - maximumSlot - 4)
+        let right = firstSystemX - 1
+        let region = CGRect(x: left, y: bounds.minY, width: right - left, height: bar.height)
+        guard region.width > 4 else { return }
+        let images = Dictionary(uniqueKeysWithValues: apps.compactMap { item in
+            access.layoutImage(for: item).map { (item.id, $0) }
+        })
+        let excluded = Set([markerPanel, ghostPanel, reflowPanel].compactMap { panel in
+            panel.map { CGWindowID($0.windowNumber) }
+        })
+        surfaceCapturePending = true
+        surfaceRevision += 1
+        let revision = surfaceRevision, token = generation
+        Task { @MainActor [weak self] in
+            let surface = await LiveMenuBarReflowSurface.capture(displayID: display, region: region,
+                candidates: apps, images: images, excludingWindows: excluded)
+            guard let self, revision == self.surfaceRevision else { return }
+            self.surfaceCapturePending = false
+            guard self.editing, token == self.generation, self.displayID == display, !self.isBusy else { return }
+            self.reflowSurface = surface
+        }
     }
 
     private func beginDrag(at point: CGPoint) {
-        guard editing, requestedActive, session == nil, let display = displayID,
+        guard editing, requestedActive, session == nil, !settling, let display = displayID,
               !markerFrame.isEmpty, let screen = screen(for: display), let bar = menuBarRect(on: screen) else { return }
         let matches = snapshot.filter { $0.frame.contains(point) }
         guard matches.count == 1, let source = matches.first,
@@ -234,13 +286,27 @@ final class LiveMenuBarEditor {
             alwaysHidden: layout.alwaysHiddenBundleIDs, ownPID: getpid(),
             minimumDividerX: bounds.minX + 5, maximumDividerX: firstSystemX - 5)
         guard let session else { return }
+        visualRevision += 1
         crossing = LiveCrossingState(initialSide: session.preview(at: point))
+        let apps = snapshot.filter { !$0.isSystemOwned && !$0.isLiveDivider && !layout.isAlwaysHidden($0) }
+        if let surface = reflowSurface,
+           surface.signature == LiveMenuBarReflowSurface.signature(for: apps),
+           surface.region.contains(source.frame),
+           let view = surface.makeView(source: source) {
+            let overlay = LiveEditorPanel(frame: appKitRect(surface.region, screen: screen, display: display), levelOffset: 1)
+            overlay.contentView = view
+            reflowView = view
+            reflowPanel = overlay
+            overlay.orderFrontRegardless()
+        }
         let panel = LiveEditorPanel(frame: .zero, levelOffset: 3)
         let imageView = NSImageView()
         imageView.image = image
         imageView.imageScaling = .scaleProportionallyDown
         imageView.contentTintColor = .labelColor
         panel.contentView = imageView
+        let fit = min(1, min(source.width / max(image.size.width, 1), source.height / max(image.size.height, 1)))
+        ghostSize = CGSize(width: image.size.width * fit, height: image.size.height * fit)
         ghostPanel = panel
         moveDrag(at: point)
     }
@@ -260,27 +326,71 @@ final class LiveMenuBarEditor {
                 self.session = shifted
                 if actualDelta != 0 {
                     markerFrame.origin.x += actualDelta
-                    markerView?.setDividerPosition(markerFrame.midX - drag.displayBounds.minX, animated: true)
+                    let start = CACurrentMediaTime()
+                    markerView?.setDividerPosition(markerFrame.midX - drag.displayBounds.minX, animated: true, start: start)
+                    reflowView?.moveNeighbours(displacement: shifted.dividerX - shifted.initialDividerX, start: start)
                 }
             }
             layout.applyLiveVisibility(drag.source, to: transition, sourceSnapshot: snapshot)
         }
         guard drag.displayBounds.contains(point) else { ghostPanel?.orderOut(nil); return }
         let p = appKitPoint(point, screen: screen, display: drag.displayID)
-        ghostPanel?.setFrame(CGRect(x: p.x - 15, y: p.y - 15, width: 30, height: 30), display: true)
+        ghostPanel?.setFrame(CGRect(x: p.x - ghostSize.width / 2, y: p.y - ghostSize.height / 2,
+                                   width: ghostSize.width, height: ghostSize.height), display: true)
         ghostPanel?.orderFrontRegardless()
     }
 
     private func endDrag(at point: CGPoint) {
-        if session != nil {
+        if let drag = session {
             moveDrag(at: point)
             session = nil
             ghostPanel?.orderOut(nil)
             markerView?.setState(nil, dragging: false)
             onCommit()
+            if reflowView != nil {
+                settling = true
+                let revision = visualRevision
+                settleVisualDrag(display: drag.displayID, revision: revision, attempt: 0)
+                // Always release the visual cover even if AX/permissions stop responding.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+                    guard let self, self.settling, self.visualRevision == revision else { return }
+                    self.finishVisualDrag()
+                }
+                return
+            }
         }
         if !requestedActive { close() }
         else { refreshDisplay(delay: 0.12) }
+    }
+
+    private func settleVisualDrag(display: CGDirectDisplayID, revision: Int, attempt: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+            guard let self, self.settling, self.visualRevision == revision,
+                  self.displayID == display else { return }
+            if self.layout.isMovingItem && attempt < 5 {
+                self.settleVisualDrag(display: display, revision: revision, attempt: attempt + 1)
+                return
+            }
+            self.access.refresh { [weak self] in
+                guard let self, self.settling, self.visualRevision == revision,
+                      self.access.displayID == display else { return }
+                self.reflowView?.settle(to: self.access.liveItems, start: CACurrentMediaTime())
+                DispatchQueue.main.asyncAfter(deadline: .now() + LiveMenuBarMotion.duration) { [weak self] in
+                    guard let self, self.settling, self.visualRevision == revision else { return }
+                    self.finishVisualDrag()
+                }
+            }
+        }
+    }
+
+    private func finishVisualDrag() {
+        settling = false
+        reflowPanel?.orderOut(nil)
+        reflowPanel = nil
+        reflowView = nil
+        reflowSurface = nil
+        if !requestedActive { close() }
+        else { refreshDisplay() }
     }
 
     private func close() {
@@ -292,6 +402,14 @@ final class LiveMenuBarEditor {
         displayID = nil
         snapshot = []
         markerFrame = .zero
+        visualRevision += 1
+        surfaceRevision += 1
+        settling = false
+        surfaceCapturePending = false
+        reflowSurface = nil
+        reflowView = nil
+        reflowPanel?.orderOut(nil)
+        reflowPanel = nil
         markerPanel?.orderOut(nil)
         ghostPanel?.orderOut(nil)
         layout.endLiveDividerEditing()
@@ -357,19 +475,19 @@ private final class LiveDividerMarkerView: NSView {
         stroke.frame = CGRect(x: dividerCenterX - 0.75, y: bounds.midY - height / 2, width: 1.5, height: height)
         CATransaction.commit()
     }
-    func setDividerPosition(_ x: CGFloat, animated: Bool) {
+    func setDividerPosition(_ x: CGFloat, animated: Bool, start: CFTimeInterval = CACurrentMediaTime()) {
         guard abs(x - dividerCenterX) > 0.1 else { return }
         let current = stroke.presentation()?.position ?? stroke.position
         dividerCenterX = x
         needsLayout = true
         layoutSubtreeIfNeeded()
         guard animated else { return }
-        let animation = CABasicAnimation(keyPath: "position")
-        animation.fromValue = current
-        animation.toValue = stroke.position
-        animation.duration = 0.18
-        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        stroke.add(animation, forKey: "divider-slide")
+        let target = stroke.position
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        stroke.position = current
+        CATransaction.commit()
+        LiveMenuBarMotion.move(stroke, to: target, start: start)
     }
     func setState(_ state: MenuBarLayoutZone?, dragging: Bool) {
         guard self.state != state || self.dragging != dragging || stroke.backgroundColor == nil else { return }

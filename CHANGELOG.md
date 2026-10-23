@@ -4,7 +4,22 @@ User-facing highlights. Detailed build notes are maintained during development; 
 
 ## Unreleased
 
-No unreleased user-facing changes are currently listed.
+Release prepared: 0.3.0 beta (build 49). Tag: `v0.3.0-beta.49`.
+
+## 0.3.0 beta — build 49
+
+- Added horizontal trackpad and mouse gestures to reveal or re-hide menu bar icons.
+- Smoothed the live Command–Option divider and neighbouring icon movement while preserving native icon order.
+- Improved display-aware menu bar editing and kept system icons outside the live animation.
+- Added a verified local backup of the previous signed installers before replacing release packages.
+- Updated the interface and release channel for the 0.3 beta.
+
+## 0.3.0.1 alpha — build 47
+
+- Added an opt-in horizontal swipe to show or hide the Hidden section from empty menu-bar space.
+- Added complementary Show/Hide direction pickers in General, saved across launches; defaults are left to show and right to hide.
+- Gesture recognition rejects vertical motion, momentum, cross-display strokes, visible menu items, and uncertain hit tests. Always Hidden items and the existing auto-hide policy are preserved.
+- Added alpha version display and release-channel filtering; beta and stable clients do not select alpha releases.
 
 ## 0.2.1 beta — build 46
 

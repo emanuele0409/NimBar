@@ -230,6 +230,27 @@ struct SettingsView: View {
                     .font(.system(size: 10)).foregroundStyle(secondaryText).fixedSize(horizontal: false, vertical: true)
             }
 
+            settingsCard(title: L10n.text("Swipe nella barra dei menu"), symbol: "arrow.left.arrow.right", tint: .cyan) {
+                HStack(spacing: 12) {
+                    Toggle(L10n.text("Mostra e nascondi con uno swipe"), isOn: $store.menuBarSwipeEnabled)
+                        .controlSize(.small)
+                    Spacer(minLength: 0)
+                }
+                HStack(spacing: 18) {
+                    compactPicker(L10n.text("Mostra icone"), selection: $store.showSwipeDirection) {
+                        ForEach(MenuBarSwipeDirection.allCases) { Text($0.title).tag($0) }
+                    }
+                    compactPicker(L10n.text("Nascondi icone"), selection: Binding(
+                        get: { store.hideSwipeDirection }, set: { store.setHideSwipeDirection($0) }
+                    )) {
+                        ForEach(MenuBarSwipeDirection.allCases) { Text($0.title).tag($0) }
+                    }
+                }
+                .disabled(!store.menuBarSwipeEnabled)
+                Text(L10n.text("Scorri orizzontalmente negli spazi vuoti o nella zona delle icone nascoste. Usa un trackpad o un mouse con scorrimento orizzontale."))
+                    .font(.system(size: 10)).foregroundStyle(secondaryText).fixedSize(horizontal: false, vertical: true)
+            }
+
             settingsCard(title: L10n.text("Avvio e barra dei menu"), symbol: "menubar.rectangle", tint: .indigo) {
                 Toggle(L10n.text("Avvia NimBar al login"), isOn: Binding(
                     get: { loginItem.isRegistered }, set: { loginItem.setEnabled($0) }
@@ -433,7 +454,7 @@ struct SettingsView: View {
                 HStack(spacing: 8) {
                     Label("NimBar", systemImage: "menubar.rectangle")
                     Text("•").foregroundStyle(.tertiary)
-                    Text("\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.1") beta")
+                    Text(AppVersion.displayName)
                 }
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .padding(.horizontal, 13).padding(.vertical, 7)

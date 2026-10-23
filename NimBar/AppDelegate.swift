@@ -20,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var localMouseMonitor: Any?
     private var globalRightMouseMonitor: Any?
     private var localRightMouseMonitor: Any?
+    private var globalScrollMonitor: Any?
+    private var localScrollMonitor: Any?
+    private var swipeRecognizer = MenuBarSwipeRecognizer()
     private var dividerModifiersActive = false
     private var liveEditor: LiveMenuBarEditor?
     private var blankClickGeneration = 0
@@ -55,6 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         NSApp.setActivationPolicy(.accessory)
         layout.initializeHiddenSection()
         installBlankMenuBarClickMonitors()
+        settings.onSwipePreferencesChanged = { [weak self] in self?.configureSwipeMonitors() }
+        configureSwipeMonitors()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.autosaveName = "NimBar.Main"
         item.button?.toolTip = L10n.text("NimBar — gestione della barra dei menu")
@@ -105,7 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         accessibility.refreshPermissionStatus()
         if accessibility.isTrusted { liveEditor?.prepareInput() }
         // Show the welcome/permissions screen once for each app version.
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.1"
+        let version = AppVersion.version
         let permissionSetupKey = "didShowNimBarWelcome.\(version)"
         let shouldShowPermissionSetup = !UserDefaults.standard.bool(forKey: permissionSetupKey) || !settings.hasLanguageSelection
         UserDefaults.standard.set(true, forKey: permissionSetupKey)
@@ -192,6 +197,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             let location = NSEvent.mouseLocation
             Task { @MainActor [weak self] in self?.showMenuForBlankMenuBarRightClick(at: location) }
             return event
+        }
+    }
+
+    private func configureSwipeMonitors() {
+        for monitor in [globalScrollMonitor, localScrollMonitor] {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+        }
+        globalScrollMonitor = nil
+        localScrollMonitor = nil
+        swipeRecognizer.reset()
+        blankClickGeneration += 1
+        guard settings.menuBarSwipeEnabled, !safeMode else { return }
+        globalScrollMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            let sample = MenuBarSwipeSample(event: event, location: NSEvent.mouseLocation)
+            Task { @MainActor [weak self] in self?.handleMenuBarSwipe(sample) }
+        }
+        localScrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            let sample = MenuBarSwipeSample(event: event, location: NSEvent.mouseLocation)
+            Task { @MainActor [weak self] in self?.handleMenuBarSwipe(sample) }
+            return event
+        }
+    }
+
+    private func handleMenuBarSwipe(_ sample: MenuBarSwipeSample) {
+        guard settings.menuBarSwipeEnabled, permissionsReady, !settings.showPermissionSetup,
+              !dividerModifiersActive, !settings.isCapturingHotKey,
+              liveEditor?.isBusy != true, !isMenuTracking else {
+            swipeRecognizer.reset()
+            blankClickGeneration += 1
+            return
+        }
+        let screen = NSScreen.screens.first { $0.frame.contains(sample.location) }
+        let displayNumber = screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+        let overMenuBar = screen.flatMap { menuBarRect(on: $0) }?.contains(sample.location) == true
+        guard let intent = swipeRecognizer.consume(sample, displayID: displayNumber?.uint32Value,
+                                                    isOverMenuBar: overMenuBar) else { return }
+        let shouldShow = intent.direction == settings.showSwipeDirection
+        guard shouldShow == layout.isCollapsed else { return }
+        blankClickGeneration += 1
+        let token = blankClickGeneration
+        dividerAccessibility.selectDisplay(CGDirectDisplayID(intent.displayID))
+        // Scan once per recognized stroke, never once per scroll packet. Only
+        // validate its original point before visibility changes move real items.
+        dividerAccessibility.refresh { [weak self] in
+            guard let self, token == self.blankClickGeneration,
+                  self.settings.menuBarSwipeEnabled, self.permissionsReady,
+                  !self.settings.showPermissionSetup, !self.dividerModifiersActive,
+                  self.liveEditor?.isBusy != true, !self.isMenuTracking,
+                  self.dividerAccessibility.displayID == intent.displayID,
+                  ProcessInfo.processInfo.systemUptime - sample.timestamp < 1.5,
+                  let sourceScreen = NSScreen.screens.first(where: {
+                      ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == intent.displayID
+                  }),
+                  self.menuBarRect(on: sourceScreen)?.contains(NSEvent.mouseLocation) == true,
+                  self.canOpenMenuForRightClick(at: intent.origin) else { return }
+            if shouldShow {
+                if self.layout.isCollapsed { self.showManagedItems() }
+            } else if !self.layout.isCollapsed {
+                self.layout.toggleHiddenSection()
+            }
         }
     }
 
@@ -528,7 +593,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         dividerModifierTimer?.invalidate()
         statusVisibilityRetry?.cancel()
         welcomeObservation?.cancel()
-        for monitor in [globalMouseMonitor, localMouseMonitor, globalRightMouseMonitor, localRightMouseMonitor] {
+        for monitor in [globalMouseMonitor, localMouseMonitor, globalRightMouseMonitor, localRightMouseMonitor,
+                        globalScrollMonitor, localScrollMonitor] {
             if let monitor { NSEvent.removeMonitor(monitor) }
         }
     }

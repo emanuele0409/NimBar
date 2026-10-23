@@ -6,6 +6,8 @@ This is a manual checklist for a future maintainer. It does not publish a releas
 
 NimBar currently uses a marketing version and a separate monotonically increasing build number. Keep the app's displayed version, Xcode marketing version, build number, Git tag, release title, and notes consistent.
 
+The release prepared for publication is **0.3.0 beta**, internal build **49**, with tag `v0.3.0-beta.49`. Beta tags include the internal build; GitHub release notes and the app bundle use the three-part marketing version.
+
 Use a clear prerelease tag for beta builds, for example `v0.2.1-beta.46`, and mark the GitHub release as a prerelease. Stable tags should use a stable version such as `v0.2.1` and must not be marked prerelease. Increment the build number for each distributed build. Agree on the final tag and version-comparison policy before enabling an updater; see [Update Design](UPDATES.md).
 
 Do not claim support for an architecture or macOS version until a built artifact has been checked on that configuration. The current stated target is macOS 27 and Apple Silicon arm64.
@@ -91,3 +93,9 @@ Copy and complete this structure for each release:
 - Keep the README's Releases link pointing to `https://github.com/emanuele0409/NimBar/releases` rather than a particular asset or a `/latest` endpoint.
 - If the release is beta, say so plainly and keep it distinct from stable releases.
 - Keep checksums, asset names, architecture labels, and release notes in sync with the uploaded files.
+
+## Rollback backups — permanent author preference
+
+Always retain the previous version before replacing current packages. `Scripts/package.sh` now calls `Scripts/backup-release.py` after new-package validation and before changing current outputs. It verifies and archives the old DMG, ZIP and checksums in `build/backups/<version>-<channel>-build-<build>-<zip-hash>/`. It also snapshots each newly packaged release and its source there, so the next code change starts with a recoverable source baseline. Existing backups are verified and never overwritten or pruned. Backup failure stops packaging before replacement. Keep one current DMG and ZIP in `build/packages`; historical versions live separately in `build/backups`. An optional `NIMBAR_BACKUP_OUT` selects another backup directory.
+
+The 0.3.0.1 alpha build 47 baseline is saved with both installers, checksums and `Source.tar.gz`. To roll back the installed app, quit NimBar and reinstall `NimBar.app` from that backup's DMG or ZIP; source restoration is a separate deliberate operation and must not overwrite current work automatically.

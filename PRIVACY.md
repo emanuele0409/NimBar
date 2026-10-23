@@ -29,3 +29,9 @@ Preferences and the icon cache are stored locally by macOS in NimBar's app prefe
 ## Contact
 
 For ordinary privacy questions, use [GitHub Issues](https://github.com/emanuele0409/NimBar/issues) after the repository is public. Do not post personal or sensitive information there.
+
+## Optional menu bar swipe
+
+When enabled in General, NimBar observes horizontal scroll events locally and globally to recognize a gesture over empty menu-bar space or hidden-item footprints. It reads deltas, gesture phase, timestamp and pointer position; it does not record or transmit these events. The local monitor returns the original event unchanged. Monitoring is removed when the option is disabled. No additional permission, keyboard monitoring or network connection is added for swipe.
+
+The live drag animation may temporarily capture the editable app-icon strip using the existing Screen Recording permission. It excludes application menus and system icons, keeps the background and icon copies only in memory, and discards them after the gesture. No new permission, recording file, telemetry or network transmission is introduced.

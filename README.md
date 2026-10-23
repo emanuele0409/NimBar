@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="GNU GPL version 3">
 </p>
 
-> **Public release coming soon.** NimBar is not yet available for public download. The Releases page is the stable place to check when a release is announced.
+> **Latest beta: 0.3.0.** Download it from the [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases).
 
 ## Contents
 
@@ -76,9 +76,9 @@ Planned views:
 
 ## Download
 
-**Public release coming soon.** No DMG or ZIP is published yet.
+The latest beta is **0.3.0**. Download the DMG or ZIP from the [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases).
 
-When a public build is ready, use the [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases). This link will remain stable across versions. Release assets and version details will appear there only after publication.
+This link remains stable across versions. Each release includes the current version details and verified package checksums.
 
 ## Compatibility
 

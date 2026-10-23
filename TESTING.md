@@ -121,3 +121,34 @@ Non sono stati verificati tutti gli assetti multischermo, riavvio, sleep/wake, c
 - Il controllo regressione del selettore icone passa: tutte le scelte mantengono 14 pt di altezza.
 - Build Release completata, firma Apple Development originale e contenuto di DMG/ZIP verificati da `Scripts/package.sh`; bundle 0.2.1, build 46. Checksum SHA-256 dei pacchetti validi.
 - Una prova della pulizia con file temporanei verifica che soltanto i vecchi archivi NimBar versionati e i loro checksum siano rimossi. La cartella finale contiene un solo DMG, un solo ZIP e `SHA256SUMS.txt`; i metadati Finder sono preservati.
+
+
+## 0.3.0.1 alpha — build 47 (2026-10-17)
+
+- Debug build and the SettingsStoreTests suite passed: 39 cases. The host exits initialization before creating real status items or applying visibility.
+- Added gesture tests cover persisted opt-in settings, complementary directions, accumulated horizontal threshold, one action per phased stroke, momentum rejection, natural-scrolling inversion, vertical rejection, off-bar origins, display locking and wheel idle rearming.
+- An in-memory URLProtocol feed verifies alpha/beta/stable filtering and rejects malformed or mismatched tag/channel combinations, without reaching GitHub. Version tests verify alpha revision/channel precedence. Bundle metadata test confirms an explicit supported release channel.
+- An isolated native SwiftUI preview extracted the actual General panel and helpers, with temporary preferences and a fake login service. English and Italian, light and dark variants each measured 746 × 517 pt, within the existing settings page. Reviewed the rendered Italian light and English dark images; no scrolling or truncated swipe selectors. This is a component preview, not a physical input test.
+- Release packaging passed the original-certificate/private-key preflight, app and DMG strict signature checks, DMG integrity, and extracted DMG/ZIP content checks. ZIP Info.plist confirms public version 0.3.0.1, channel alpha, build 47. Final SHA-256 checksums match; local output has one DMG and one ZIP.
+- Physical swipe delivery/direction over real hidden menu-bar areas on trackpad, Magic Mouse and other horizontal-scroll devices remains a manual hardware check. No real menu-bar manipulation was performed by the tests. No alpha GitHub release was published.
+
+
+### Rollback backup preparation (2026-10-17)
+
+Saved and verified the current 0.3.0.1 alpha build 47 DMG, ZIP, checksum file and source snapshot before animation work. The backup helper passed isolated fixtures for first-run/no previous package, repeat/idempotent reuse, corrupted-backup refusal, incomplete-current-package refusal and preservation of the originals. The packaging shell syntax check passed. No animation code or application binary was changed during this grilling round. Full integration of the backup calls will run when the next confirmed application build is packaged.
+
+## 0.3.0.2 alpha — build 48 (2026-10-17)
+
+- Debug build passed. All 43 SettingsStoreTests passed, including the existing protected-input, divider, cross-display and swipe regressions.
+- New isolated fixtures verify reversible neighbour movement and ordering, source/system/foreign-display exclusion, bounds clamping, 2x background slot clearing with untouched outside pixels, rejection of unsafe capture edges, shared spring timing and original glyph size, and source visibility only at handoff.
+- The tests instantiate synthetic AppKit views/layers and image fixtures, without changing the real menu bar, installing input monitors or registering login items. Physical spring smoothness, early modifier-to-drag timing and the handoff on one/two displays still require acceptance on user hardware.
+- The user confirmed the previous swipe feature works perfectly. Its behaviour and input path are preserved.
+
+Release packaging passed the original-certificate/private-key preflight, strict app/DMG signatures, DMG integrity, extracted DMG/ZIP content verification, version/channel metadata and SHA-256 checks. Immutable backups for both build 47 and build 48 were verified; the current packages folder contains one DMG and one ZIP. Backup source snapshots represent packaging time; this final validation note was added afterwards.
+
+## 0.3.0 beta — build 49 (2026-10-23)
+
+- All 43 SettingsStoreTests passed, including swipe handling, beta/alpha release ordering, protected drag, native-order reflow, system/display exclusion, and synthetic layer animation fixtures.
+- Release packages report version 0.3.0, channel beta, build 49. The original Apple Development identity and strict package checks passed; SHA-256 values are listed in `build/packages/SHA256SUMS.txt`.
+- The previous alpha and the new beta installers/source snapshots are preserved in `build/backups`. The published application is signed but not notarized and does not use a Developer ID distribution certificate.
+- The user reports no bugs in this version. The coordinated live animation is now ready for beta release; the automated fixtures do not simulate physical dragging on the live menu bar.

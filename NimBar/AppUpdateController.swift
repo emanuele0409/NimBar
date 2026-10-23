@@ -9,27 +9,36 @@ struct AppUpdateRelease: Equatable, Sendable {
     let assetURL: URL
     let releaseURL: URL?
     let isPrerelease: Bool
+    let isAlpha: Bool
 
-    init(version: String, build: Int, assetURL: URL, releaseURL: URL? = nil, isPrerelease: Bool = false) {
+    init(version: String, build: Int, assetURL: URL, releaseURL: URL? = nil, isPrerelease: Bool = false,
+         isAlpha: Bool = false) {
         self.version = version
         self.build = build
         self.assetURL = assetURL
         self.releaseURL = releaseURL
         self.isPrerelease = isPrerelease
+        self.isAlpha = isAlpha
     }
 
-    func isNewer(than version: String, build: Int, isPrerelease currentIsPrerelease: Bool = false) -> Bool {
-        let order = self.version.compare(version, options: .numeric)
-        if order == .orderedDescending { return true }
-        guard order == .orderedSame else { return false }
-        if isPrerelease != currentIsPrerelease { return !isPrerelease }
-        return self.build > build
+    func isNewer(than version: String, build: Int, isPrerelease currentIsPrerelease: Bool = false,
+                 isAlpha currentIsAlpha: Bool = false) -> Bool {
+        isNewer(than: AppUpdateRelease(version: version, build: build, assetURL: assetURL,
+                                       isPrerelease: currentIsPrerelease, isAlpha: currentIsAlpha))
     }
 
     func isNewer(than other: AppUpdateRelease) -> Bool {
-        let order = version.compare(other.version, options: .numeric)
+        let baseVersion = isAlpha ? version.split(separator: ".").prefix(3).joined(separator: ".") : version
+        let otherBaseVersion = other.isAlpha ? other.version.split(separator: ".").prefix(3).joined(separator: ".") : other.version
+        let order = baseVersion.compare(otherBaseVersion, options: .numeric)
         if order != .orderedSame { return order == .orderedDescending }
-        if isPrerelease != other.isPrerelease { return !isPrerelease }
+        let channelRank = !isPrerelease ? 2 : (isAlpha ? 0 : 1)
+        let otherChannelRank = !other.isPrerelease ? 2 : (other.isAlpha ? 0 : 1)
+        if channelRank != otherChannelRank { return channelRank > otherChannelRank }
+        if isAlpha {
+            let revisionOrder = version.compare(other.version, options: .numeric)
+            if revisionOrder != .orderedSame { return revisionOrder == .orderedDescending }
+        }
         return build > other.build
     }
 }
@@ -75,13 +84,16 @@ final class GitHubReleaseService: AppUpdateService {
     private static let apiURL = URL(string: "https://api.github.com/repos/emanuele0409/NimBar/releases?per_page=30")!
     private let session: URLSession
     private let allowsPrereleases: Bool
+    private let allowsAlphaReleases: Bool
 
     var supportsAutomaticInstallation: Bool { false }
 
     init(session: URLSession = .shared,
-         allowsPrereleases: Bool = Bundle.main.infoDictionary?["NIMBARReleaseChannel"] as? String != "stable") {
+         allowsPrereleases: Bool = AppVersion.channel != "stable",
+         allowsAlphaReleases: Bool = AppVersion.channel == "alpha") {
         self.session = session
         self.allowsPrereleases = allowsPrereleases
+        self.allowsAlphaReleases = allowsAlphaReleases
     }
 
     func latestRelease() async throws -> AppUpdateRelease? {
@@ -103,6 +115,7 @@ final class GitHubReleaseService: AppUpdateService {
         guard !releases.isEmpty else { return nil }
         let candidates = releases.compactMap(Self.makeAppRelease)
             .filter { allowsPrereleases || !$0.isPrerelease }
+            .filter { allowsAlphaReleases || !$0.isAlpha }
         guard let newest = candidates.reduce(Optional<AppUpdateRelease>.none, { newest, candidate in
             guard let newest else { return candidate }
             return candidate.isNewer(than: newest) ? candidate : newest
@@ -129,14 +142,17 @@ final class GitHubReleaseService: AppUpdateService {
               releaseURL.host == "github.com",
               releaseURL.path.hasPrefix("/emanuele0409/NimBar/releases/") else { return nil }
 
-        // Supported tags: vMAJOR.MINOR.PATCH and vMAJOR.MINOR.PATCH-beta.BUILD.
-        let pattern = #"^v?(\d+\.\d+\.\d+)(?:-beta\.(\d+))?$"#
+        // Alpha uses a fourth public revision, separate from the package build.
+        let pattern = #"^v?(\d+\.\d+\.\d+(?:\.\d+)?)(?:-(alpha|beta)\.(\d+))?$"#
         guard let expression = try? NSRegularExpression(pattern: pattern),
               let match = expression.firstMatch(in: release.tagName,
                                                 range: NSRange(release.tagName.startIndex..<release.tagName.endIndex, in: release.tagName)),
               let versionRange = Range(match.range(at: 1), in: release.tagName) else { return nil }
         let version = String(release.tagName[versionRange])
-        let buildRange = Range(match.range(at: 2), in: release.tagName)
+        let channelRange = Range(match.range(at: 2), in: release.tagName)
+        let isAlpha = channelRange.map { release.tagName[$0] == "alpha" } ?? false
+        guard version.split(separator: ".").count == (isAlpha ? 4 : 3) else { return nil }
+        let buildRange = Range(match.range(at: 3), in: release.tagName)
         let tagBuild = buildRange.flatMap { Int(release.tagName[$0]) }
         guard release.isPrerelease == (tagBuild != nil) else { return nil }
 
@@ -146,7 +162,7 @@ final class GitHubReleaseService: AppUpdateService {
         }).flatMap { URL(string: $0.browserDownloadURL) } ?? releaseURL
 
         return AppUpdateRelease(version: version, build: tagBuild ?? 0, assetURL: assetURL,
-                                releaseURL: releaseURL, isPrerelease: release.isPrerelease)
+                                releaseURL: releaseURL, isPrerelease: release.isPrerelease, isAlpha: isAlpha)
     }
 
     private struct GitHubRelease: Decodable {
@@ -198,6 +214,7 @@ final class AppUpdateController: ObservableObject {
     private let currentVersion: String
     private let currentBuild: Int
     private let currentIsPrerelease: Bool
+    private let currentIsAlpha: Bool
     private let canInstallAutomatically: () -> Bool
     private var timer: Timer?
     private var operationInProgress = false
@@ -205,15 +222,17 @@ final class AppUpdateController: ObservableObject {
     var releasesURL: URL { GitHubReleaseService.releasesURL }
 
     init(settings: SettingsStore, service: (any AppUpdateService)? = nil,
-         currentVersion: String = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.1",
+         currentVersion: String = AppVersion.version,
          currentBuild: Int = Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0") ?? 0,
-         currentIsPrerelease: Bool = Bundle.main.infoDictionary?["NIMBARReleaseChannel"] as? String != "stable",
+         currentIsPrerelease: Bool = AppVersion.channel != "stable",
+         currentIsAlpha: Bool = AppVersion.channel == "alpha",
          canInstallAutomatically: @escaping () -> Bool = { false }) {
         self.settings = settings
         self.service = service
         self.currentVersion = currentVersion
         self.currentBuild = currentBuild
         self.currentIsPrerelease = currentIsPrerelease
+        self.currentIsAlpha = currentIsAlpha
         self.canInstallAutomatically = canInstallAutomatically
         lastCheckDate = settings.lastUpdateCheckDate
         state = service == nil ? .unconfigured : .idle
@@ -265,7 +284,7 @@ final class AppUpdateController: ObservableObject {
             L10n.text("NimBar installerà l’aggiornamento quando le impostazioni saranno chiuse e nessun trascinamento sarà in corso. Puoi anche installarlo adesso.")
         case .failed(let message): message
         case .installed: L10n.text("NimBar verrà riavviata con la nuova versione.")
-        default: L10n.format("Versione attuale: %@ beta (build %@).", currentVersion, String(currentBuild))
+        default: L10n.format("Versione attuale: %@ (build %@).", AppVersion.label(for: currentVersion), String(currentBuild))
         }
     }
 
@@ -332,7 +351,8 @@ final class AppUpdateController: ObservableObject {
                 state = .noReleasePublished
                 return
             }
-            if release.isNewer(than: currentVersion, build: currentBuild, isPrerelease: currentIsPrerelease) {
+            if release.isNewer(than: currentVersion, build: currentBuild, isPrerelease: currentIsPrerelease,
+                               isAlpha: currentIsAlpha) {
                 state = .available(release)
                 if settings.updateMode == .installAutomatically && service.supportsAutomaticInstallation {
                     await download(release, explicitlyInstall: false)

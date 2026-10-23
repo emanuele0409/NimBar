@@ -2,6 +2,7 @@
 import XCTest
 import AppKit
 import ServiceManagement
+import QuartzCore
 @testable import NimBar
 
 @MainActor
@@ -10,6 +11,101 @@ final class SettingsStoreTests: XCTestCase {
         let store = SettingsStore(defaults: makeDefaults())
         XCTAssertFalse(store.autoHideEnabled)
         XCTAssertEqual(store.autoHideDelay, .five)
+    }
+
+    func testSwipeIsOptInAndDirectionsRemainComplementaryAfterRelaunch() {
+        let defaults = makeDefaults()
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertFalse(store.menuBarSwipeEnabled)
+        XCTAssertEqual(store.showSwipeDirection, .left)
+        XCTAssertEqual(store.hideSwipeDirection, .right)
+        store.menuBarSwipeEnabled = true
+        store.setHideSwipeDirection(.left)
+        let restored = SettingsStore(defaults: defaults)
+        XCTAssertTrue(restored.menuBarSwipeEnabled)
+        XCTAssertEqual(restored.showSwipeDirection, .right)
+        XCTAssertEqual(restored.hideSwipeDirection, .left)
+        restored.showSwipeDirection = .left
+        XCTAssertEqual(restored.hideSwipeDirection, .right)
+    }
+
+    func testSwipeAccumulatesOnceAndIgnoresMomentumUntilANewGesture() throws {
+        var recognizer = MenuBarSwipeRecognizer()
+        let origin = CGPoint(x: 100, y: 900)
+        XCTAssertNil(recognizer.consume(.init(x: 7, began: true, timestamp: 1, location: origin),
+                                        displayID: 1, isOverMenuBar: true))
+        let intent = try XCTUnwrap(recognizer.consume(.init(x: 12, phased: true, timestamp: 1.1),
+                                                     displayID: 1, isOverMenuBar: true))
+        XCTAssertEqual(intent, MenuBarSwipeIntent(direction: .left, origin: origin, displayID: 1))
+        // Even a pause inside a phased stroke must not rearm it.
+        XCTAssertNil(recognizer.consume(.init(x: 30, phased: true, timestamp: 2), displayID: 1, isOverMenuBar: true))
+        XCTAssertNil(recognizer.consume(.init(x: -30, momentum: true, timestamp: 2.1), displayID: 1, isOverMenuBar: true))
+        XCTAssertEqual(recognizer.consume(.init(x: -20, began: true, timestamp: 3), displayID: 1,
+                                          isOverMenuBar: true)?.direction, .right)
+    }
+
+    func testSwipeNormalizesNaturalScrollingAndRejectsVerticalAndCrossDisplayStrokes() {
+        var recognizer = MenuBarSwipeRecognizer()
+        XCTAssertEqual(recognizer.consume(.init(x: -20, inverted: true, began: true, timestamp: 1),
+                                          displayID: 1, isOverMenuBar: true)?.direction, .left)
+        recognizer.reset()
+        XCTAssertNil(recognizer.consume(.init(x: 2, y: 20, began: true, timestamp: 2), displayID: 1, isOverMenuBar: true))
+        XCTAssertNil(recognizer.consume(.init(x: 50, phased: true, timestamp: 2.1), displayID: 1, isOverMenuBar: true))
+        recognizer.reset()
+        XCTAssertNil(recognizer.consume(.init(x: 8, began: true, timestamp: 3), displayID: 1, isOverMenuBar: true))
+        XCTAssertNil(recognizer.consume(.init(x: 20, phased: true, timestamp: 3.1), displayID: 2, isOverMenuBar: true))
+        XCTAssertNil(recognizer.consume(.init(x: 20, phased: true, timestamp: 3.2), displayID: 1, isOverMenuBar: true))
+    }
+
+    func testSwipeCannotBeginOutsideBarAndWheelRearmsOnlyAfterIdle() {
+        var recognizer = MenuBarSwipeRecognizer()
+        XCTAssertNil(recognizer.consume(.init(x: 20, began: true, timestamp: 1), displayID: 1, isOverMenuBar: false))
+        XCTAssertNil(recognizer.consume(.init(x: 20, phased: true, timestamp: 1.1), displayID: 1, isOverMenuBar: true))
+        recognizer.reset()
+        XCTAssertNotNil(recognizer.consume(.init(x: 1, precise: false, timestamp: 2), displayID: 1, isOverMenuBar: true))
+        XCTAssertNil(recognizer.consume(.init(x: 1, precise: false, timestamp: 2.1), displayID: 1, isOverMenuBar: true))
+        XCTAssertNotNil(recognizer.consume(.init(x: 1, precise: false, timestamp: 2.5), displayID: 1, isOverMenuBar: true))
+    }
+
+    func testAlphaRevisionAndChannelPrecedenceUseSeparateVersionAndBuildNumbers() {
+        let url = URL(string: "https://example.invalid/NimBar.dmg")!
+        let alpha = AppUpdateRelease(version: "0.3.0.1", build: 47, assetURL: url, isPrerelease: true, isAlpha: true)
+        let nextAlpha = AppUpdateRelease(version: "0.3.0.2", build: 48, assetURL: url, isPrerelease: true, isAlpha: true)
+        let beta = AppUpdateRelease(version: "0.3.0", build: 1, assetURL: url, isPrerelease: true)
+        let stable = AppUpdateRelease(version: "0.3.0", build: 1, assetURL: url)
+        XCTAssertTrue(nextAlpha.isNewer(than: alpha))
+        XCTAssertFalse(alpha.isNewer(than: nextAlpha))
+        XCTAssertTrue(beta.isNewer(than: nextAlpha))
+        XCTAssertTrue(stable.isNewer(than: beta))
+        XCTAssertFalse(nextAlpha.isNewer(than: stable))
+    }
+
+    func testReleaseDiscoveryKeepsAlphaOutOfBetaAndStableChannels() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [ReleaseFixtureURLProtocol.self]
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+        let stable = try await GitHubReleaseService(session: session, allowsPrereleases: false,
+                                                    allowsAlphaReleases: false).latestRelease()
+        XCTAssertEqual(stable?.version, "0.2.1")
+        let beta = try await GitHubReleaseService(session: session, allowsPrereleases: true,
+                                                  allowsAlphaReleases: false).latestRelease()
+        XCTAssertEqual(beta?.version, "0.3.0")
+        XCTAssertFalse(beta?.isAlpha ?? true)
+        let alpha = try await GitHubReleaseService(session: session, allowsPrereleases: true,
+                                                   allowsAlphaReleases: true).latestRelease()
+        XCTAssertEqual(alpha?.version, "0.4.0.2")
+        XCTAssertEqual(alpha?.build, 48)
+        XCTAssertTrue(alpha?.isAlpha ?? false)
+    }
+
+    func testPackagedMetadataDeclaresItsChannelAndVersionFormat() throws {
+        let channel = try XCTUnwrap(Bundle.main.infoDictionary?["NIMBARReleaseChannel"] as? String)
+        XCTAssertTrue(["alpha", "beta", "stable"].contains(channel))
+        let version = try XCTUnwrap(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
+        XCTAssertEqual(version.split(separator: ".").count, channel == "alpha" ? 4 : 3)
+        XCTAssertEqual(AppVersion.channel, channel)
+        XCTAssertTrue(AppVersion.displayName.contains(version))
     }
     func testLoginRegistrationUsesSystemStatusAndAvoidsDuplicateRequests() {
         let service = FakeLoginItemService()
@@ -416,6 +512,83 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(L10n.errorDescription(error, language: .italian), "La richiesta macOS è scaduta; le icone sono state ripristinate.")
     }
 
+    func testReflowPreservesOrderAndReversesWithoutTouchingSystemItems() throws {
+        let left = candidate("app.left", x: 100)
+        let near = candidate("app.near", x: 130)
+        let source = candidate("app.source", x: 160)
+        let right = candidate("app.right", x: 190)
+        let system = candidate("com.apple.controlcenter", x: 220)
+        let foreignDisplay = candidate("app.otherDisplay", x: 1200)
+        let plan = LiveMenuBarReflowPlan(source: source,
+            neighbours: [left, near, source, right, system, foreignDisplay],
+            bounds: CGRect(x: 80, y: 0, width: 160, height: 24))
+        let hidden = plan.frames(displacement: 20)
+        XCTAssertEqual(hidden[left.id]?.minX, 120)
+        XCTAssertEqual(hidden[near.id]?.minX, 150)
+        XCTAssertEqual(hidden[right.id], right.frame)
+        XCTAssertNil(hidden[source.id])
+        XCTAssertNil(hidden[system.id])
+        XCTAssertNil(hidden[foreignDisplay.id])
+        let restored = plan.frames(displacement: 0)
+        XCTAssertEqual(restored[left.id], left.frame)
+        XCTAssertEqual(restored[near.id], near.frame)
+        let shown = plan.frames(displacement: -20)
+        XCTAssertEqual(shown[left.id]?.minX, 80)
+        XCTAssertEqual(shown[near.id]?.minX, 110)
+        XCTAssertEqual(plan.frames(displacement: -500), shown)
+    }
+
+    func testBackdropClearsOnlyIconSlotsAndRefusesUnsafeEdges() throws {
+        let region = CGRect(x: 100, y: 0, width: 20, height: 12)
+        let ctx = try XCTUnwrap(CGContext(data: nil, width: 40, height: 24, bitsPerComponent: 8,
+            bytesPerRow: 160, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue))
+        ctx.setFillColor(NSColor.white.cgColor)
+        ctx.fill(CGRect(x: 0, y: 0, width: 40, height: 24))
+        ctx.setFillColor(NSColor.black.cgColor)
+        ctx.fill(CGRect(x: 12, y: 6, width: 8, height: 12))
+        let image = try XCTUnwrap(ctx.makeImage())
+        let cleared = try XCTUnwrap(LiveMenuBarBackdrop.clearingSlots(in: image, region: region,
+            slots: [CGRect(x: 106, y: 0, width: 4, height: 12)]))
+        ctx.draw(cleared, in: CGRect(x: 0, y: 0, width: 40, height: 24))
+        let pixels = try XCTUnwrap(ctx.data).assumingMemoryBound(to: UInt8.self)
+        XCTAssertTrue((0..<(40 * 24 * 4)).allSatisfy { pixels[$0] == 255 })
+        XCTAssertNil(LiveMenuBarBackdrop.clearingSlots(in: image, region: region,
+            slots: [CGRect(x: 99, y: 0, width: 5, height: 12)]))
+        XCTAssertNil(LiveMenuBarBackdrop.clearingSlots(in: image, region: region,
+            slots: [CGRect(x: 117, y: 0, width: 8, height: 12)]))
+    }
+
+    func testReflowLayersShareMotionAndKeepSourceHiddenUntilHandoff() throws {
+        let source = candidate("app.source", x: 160)
+        let left = candidate("app.left", x: 120)
+        let image = NSImage(size: CGSize(width: 16, height: 16), flipped: false) { rect in
+            NSColor.systemBlue.setFill(); rect.fill(); return true
+        }
+        let bitmap = try XCTUnwrap(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let region = CGRect(x: 100, y: 0, width: 100, height: 24)
+        let surface = LiveMenuBarReflowSurface(region: region, candidates: [source, left],
+            images: [source.id: image, left.id: image], screenshot: bitmap, scale: 2, signature: "fixture")
+        let view = LiveMenuBarReflowView(surface: surface, background: bitmap, source: source,
+            sprites: [source, left])
+        let layers = try XCTUnwrap(view.layer?.sublayers)
+        XCTAssertEqual(layers.count, 3)
+        XCTAssertTrue(layers[1].isHidden)
+        let start = CACurrentMediaTime()
+        view.moveNeighbours(displacement: 20, start: start)
+        XCTAssertEqual(layers[2].position.x, 50)
+        XCTAssertEqual(layers[2].bounds.width, 16)
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            let motion = try XCTUnwrap(layers[2].animation(forKey: "menu-bar-motion") as? CASpringAnimation)
+            XCTAssertEqual(motion.duration, LiveMenuBarMotion.duration)
+            XCTAssertEqual(motion.beginTime, layers[2].convertTime(start, from: nil), accuracy: 0.001)
+        }
+        view.moveNeighbours(displacement: 0, start: start + 0.1)
+        XCTAssertEqual(layers[2].position.x, 30)
+        view.settle(to: [source, left], start: start + 0.2)
+        XCTAssertFalse(layers[1].isHidden)
+    }
+
     private func candidate(_ bundle: String, x: Double) -> MenuBarCandidate {
         MenuBarCandidate(id: "\(bundle):\(x)", bundleIdentifier: bundle, applicationName: bundle,
             label: bundle, identifier: "status", processIdentifier: 123, index: 0,
@@ -461,4 +634,27 @@ private final class FakeLoginItemService: LoginItemServicing {
         if let failure { throw failure }
         status = .notRegistered
     }
+}
+
+/// Serves a fixed release feed locally; no test request reaches GitHub.
+private final class ReleaseFixtureURLProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let tags: [(String, Bool)] = [
+            ("v0.2.1", false), ("v0.3.0-beta.49", true), ("v0.4.0.2-alpha.48", true),
+            ("v9.0.0.1-beta.90", true), ("v9.0.0-alpha.90", true), ("v9.0.0.1-alpha.90", false)
+        ]
+        let feed = tags.map { tag, prerelease in
+            ["tag_name": tag, "html_url": "https://github.com/emanuele0409/NimBar/releases/tag/\(tag)",
+             "draft": false, "prerelease": prerelease] as [String: Any]
+        }
+        let data = try! JSONSerialization.data(withJSONObject: feed)
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+                                       headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }

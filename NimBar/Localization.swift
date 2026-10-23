@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import Foundation
 
+enum AppVersion {
+    static var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.3.0" }
+    static var channel: String {
+        guard let value = Bundle.main.infoDictionary?["NIMBARReleaseChannel"] as? String,
+              value == "alpha" || value == "beta" else { return "stable" }
+        return value
+    }
+    static var displayName: String { label(for: version) }
+    static func label(for version: String) -> String {
+        channel == "stable" ? version : "\(version) \(channel)"
+    }
+}
+
 enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
     case english = "en", italian = "it"
     var id: String { rawValue }

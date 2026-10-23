@@ -64,3 +64,28 @@ La preferenza di nascondimento dell’icona NimBar ora rimuove lo status item in
 Il benvenuto è un `NSPanel` senza cornice, collegato come finestra figlia alle Impostazioni, senza la decorazione aggiuntiva dei fogli nativi, con sfondo trasparente e un `NSVisualEffectView` che copre l’intero contenuto arrotondato. La finestra principale usa una titlebar trasparente e un materiale blur condiviso da sidebar e pannello, che segue l’aspetto chiaro, scuro o di sistema. Le sezioni sono disegnate da una sidebar SwiftUI condivisa, senza la colonna separata del `NavigationSplitView`. I timer e i monitor di input vengono rimossi alla chiusura del processo; il timer di nascondimento si interrompe quando la sezione è già chiusa e resta in pausa durante il menu NimBar.
 
 La pagina Generali usa schede compatte senza contenitore scorrevole; ogni descrizione resta vicina al relativo controllo. La scheda Info include crediti, sviluppatore, licenza e collegamento al repository.
+
+
+## Menu bar swipe — 0.3.0.1 alpha, build 47
+
+`MenuBarSwipeRecognizer` is a pure state machine over snapshots of public AppKit scroll events. Precise devices accumulate 18 points of horizontally dominant travel; non-precise horizontal wheels use a one-unit threshold. Natural-scrolling inversion is normalized to device direction. Phased strokes fire once until completion; phase-less wheels rearm after 300 ms of inactivity. Momentum, predominantly vertical travel, leaving the bar, and changing displays cannot trigger another action.
+
+The opt-in global/local `.scrollWheel` monitors are installed only while the preference is enabled. Local events pass through unchanged. No keyboard events, synthetic input, additional permissions, private APIs, or new network operations are introduced. AppDelegate validates a recognized stroke with one fresh source-display scan and the same conservative AX hit test as blank-area right-clicks; stale, ambiguous, visible-icon and application-menu targets are rejected. The origin is locked before visibility changes. Editing, open menus and permission setup suspend swipe handling.
+
+Show uses the existing show-managed-items route and its timer; Hide is idempotent and collapses the existing Hidden section. Always Hidden and native icon order are unchanged. One persisted direction drives two complementary UI selectors. General remains a non-scrolling page.
+
+The alpha marketing version is `0.3.0.1`, with separate internal build `47` and release channel `alpha`. Alpha tag form is `v0.3.0.1-alpha.47`; only alpha clients accept alpha releases. Equal base versions rank stable above beta above alpha, then compare alpha revision and build. This local alpha is not published automatically.
+
+Physical trackpad/Magic Mouse direction and event delivery over hidden areas still require a manual check on authorized hardware; automated tests do not claim that verification. Vertical-only mice cannot produce a horizontal gesture.
+
+Release channel metadata is supplied explicitly through `NimBar/Info.plist` and `NIMBAR_RELEASE_CHANNEL`; a custom generated-plist build setting alone did not populate the bundle. Missing or unknown channel metadata defaults to stable filtering, preventing accidental alpha selection.
+
+## Coordinated live drag reflow — 0.3.0.2 alpha, build 48
+
+`LiveMenuBarReflowPlan` positions only neighbouring non-system icons left of the selected native slot. A shared clamped offset preserves their order, within the originating display's editable region. The proxy drag, mouse event filter, immediate visibility assignments and native hiding backend are unchanged. No native reorder or synthetic event is added.
+
+While the modifier editor is idle, an asynchronous public ScreenCaptureKit capture prepares a small app-only strip, excluding the editor windows. The strip starts after the foreground app menus and ends before the first system item. Only real, current-display icon identities and cached artwork are used. The temporary surface reconstructs empty background columns from adjacent samples; if safe samples or a matching capture are unavailable, it declines the overlay and preserves the existing drag. Captures stay in memory and are never saved or sent anywhere.
+
+During a gesture the source is represented by the existing pointer ghost, with its original cell cleared, while neighbouring icon layers and the divider share the same 300 ms Core Animation spring. Retargets start from the presentation position; Reduce Motion skips interpolation. The display and scan generation remain locked. At mouse-up a fresh scan aligns layers to the real native frames before removing the cover. A bounded watchdog removes it if scanning stalls; modifier release, permission failure and teardown also clear temporary windows. System icons are never covered or moved by this surface.
+
+This reproduces the visual gap movement with temporary layers rather than handing the gesture back to macOS native Command-drag, which would allow native reordering on mirrored displays. Physical multi-display visual acceptance remains a manual check.

@@ -4,6 +4,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 DERIVED=${NIMBAR_DERIVED_DATA:-/private/tmp/NimBarBuild}
 APP=${NIMBAR_PACKAGE_APP:-/private/tmp/NimBar.app}
 OUT=${NIMBAR_PACKAGE_OUT:-"$ROOT/build/packages"}
+BACKUPS=${NIMBAR_BACKUP_OUT:-"$ROOT/build/backups"}
 # Keep the original imported identity: never select another certificate by name.
 SIGNING_IDENTITY=${NIMBAR_SIGNING_IDENTITY:-6A1A131688AC29BD01914E366951696097276710}
 SIGNING_TEAM=${NIMBAR_SIGNING_TEAM:-L4R3ATNCT8}
@@ -104,6 +105,10 @@ codesign --verify --deep --strict "$WORK/zip-verification/NimBar.app"
 cmp "$SIGNED_APP/Contents/MacOS/NimBar" "$WORK/zip-verification/NimBar.app/Contents/MacOS/NimBar"
 cmp "$SIGNED_APP/Contents/Info.plist" "$WORK/zip-verification/NimBar.app/Contents/Info.plist"
 (cd "$PUBLISH_STAGE" && shasum -a 256 NimBar.zip NimBar.dmg > SHA256SUMS.txt)
+# A rollback package must be safe before replacing any current output. Keep
+# matching source for each newly produced release outside the download folder.
+python3 "$ROOT/Scripts/backup-release.py" "$OUT" "$BACKUPS"
+python3 "$ROOT/Scripts/backup-release.py" "$PUBLISH_STAGE" "$BACKUPS" --source-root "$ROOT"
 # Replace outputs only after every signature and package check has passed.
 rm -rf "$APP"
 ditto "$SIGNED_APP" "$APP"

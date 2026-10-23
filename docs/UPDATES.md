@@ -2,14 +2,14 @@
 
 NimBar checks the public GitHub Releases API at `https://api.github.com/repos/emanuele0409/NimBar/releases?per_page=30` using HTTPS. A manual check is available in the app; automatic checks run at launch and every 24 hours only when selected in Update settings. The client sends no account token, preferences, menu-bar data, or user identifier.
 
-When a newer supported release is found, NimBar opens its GitHub release page so the user can read release notes and download the package manually. No release has been published yet. NimBar does **not** download or install packages automatically: that path remains disabled until the packages have a verifiable signing identity and a secure installer.
+When a newer supported release is found, NimBar opens its GitHub release page so the user can read release notes and download the package manually. NimBar does **not** download or install packages automatically: that path remains disabled until the packages have a verifiable signing identity and a secure installer.
 
 ## Verified repository state
 
 The following points were checked in the current repository source and packaging script; they describe this checkout, not a published build:
 
-- The Xcode project declares version `0.2.1`, build `46`, beta release channel, macOS deployment target `27.0`, and bundle identifier `com.nimbar.NimBar`.
-- `GitHubReleaseService` performs a read-only request for the newest 30 published releases. It ignores drafts and unsupported version tags. It recognizes `vMAJOR.MINOR.PATCH` and `vMAJOR.MINOR.PATCH-beta.BUILD`; the beta suffix must agree with GitHub's prerelease flag.
+- The Xcode project declares version `0.3.0`, build `49`, beta release channel, macOS deployment target `27.0`, and bundle identifier `com.nimbar.NimBar`.
+- `GitHubReleaseService` performs a read-only request for the newest 30 published releases. It ignores drafts and unsupported version tags. It recognizes stable `vMAJOR.MINOR.PATCH`, beta `vMAJOR.MINOR.PATCH-beta.BUILD`, and alpha `vMAJOR.MINOR.PATCH.REVISION-alpha.BUILD`. The prerelease suffix must agree with GitHub's prerelease flag. Only alpha clients select alpha releases; beta clients continue to select beta/stable releases.
 - Release asset URLs are not downloaded by the app. The app opens only an HTTPS release page hosted at `github.com/emanuele0409/NimBar/releases/`.
 - The local packaging script asks Xcode to use an `Apple Development` signing identity, verifies the signature and Team ID, and does not notarize the package.
 
@@ -90,3 +90,7 @@ Manual installation instructions should explain Gatekeeper in a way that matches
 - [Sparkle — customization and feed settings](https://sparkle-project.org/documentation/customization/)
 - [Sparkle — security and reliability](https://sparkle-project.org/documentation/security-and-reliability/)
 - [Semantic Versioning 2.0.0](https://semver.org/)
+
+## Local alpha development
+
+The current release is 0.3.0 beta, build 49, tagged `v0.3.0-beta.49`. Beta clients select beta or stable releases; stable clients only select stable releases. For the same base version, stable > beta > alpha. Alpha revisions and internal builds remain separate from beta build tags.

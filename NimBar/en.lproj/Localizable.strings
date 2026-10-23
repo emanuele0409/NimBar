@@ -168,3 +168,10 @@
 "Avvio e barra dei menu" = "Startup and menu bar";
 "Il timer parte quando mostri le icone e resta in pausa mentre il puntatore è sulla barra dei menu." = "The timer starts when you reveal the icons and pauses while the pointer is over the menu bar.";
 "Benvenuto e permessi…" = "Welcome and permissions…";
+
+"Swipe a sinistra" = "Swipe left";
+"Swipe a destra" = "Swipe right";
+"Swipe nella barra dei menu" = "Menu bar swipe";
+"Mostra e nascondi con uno swipe" = "Show and hide with a swipe";
+"Scorri orizzontalmente negli spazi vuoti o nella zona delle icone nascoste. Usa un trackpad o un mouse con scorrimento orizzontale." = "Swipe horizontally in empty menu bar space or the hidden icons area. Use a trackpad or a mouse with horizontal scrolling.";
+"Versione attuale: %@ (build %@)." = "Current version: %@ (build %@).";
