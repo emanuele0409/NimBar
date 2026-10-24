@@ -8,6 +8,8 @@ NimBar reads the labels, identifiers, owning app bundle identifiers, process IDs
 
 The current implementation stores preferences locally, including layout assignments, display and appearance choices, language, shortcut modifiers, and update mode. It also keeps a local cache of menu bar icon image data in the app's preferences so previously hidden icons can remain recognisable in Layout. These values are not uploaded by the current build.
 
+When you click the menu bar clock while icons are hidden, NimBar briefly restores those icons so macOS can open or close Notification Center, then reapplies your saved visibility layout. The icons may be visible during this transition. NimBar does not place a cover over the menu bar for this action.
+
 ## Network and telemetry
 
 NimBar has no telemetry, analytics, or remote-control service. When you manually check for updates, or enable automatic checks, NimBar makes a read-only HTTPS request to the public GitHub Releases API for `emanuele0409/NimBar`. GitHub receives ordinary connection metadata such as the request time and your network address. NimBar sends no account token, menu bar data, app inventory, permission state, or saved preferences. If a newer supported release is found, NimBar opens its GitHub page; the app does not download or install it.

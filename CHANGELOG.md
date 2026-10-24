@@ -2,11 +2,18 @@
 
 User-facing highlights. Detailed build notes are maintained during development; public release notes are published on GitHub Releases.
 
+<!-- nimbar-release-sync:changelog:start -->
+<!-- release-tag: v0.3.0-beta.62 -->
 ## 0.3.0 beta — build 62
+[Release notes and downloads](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62)
 
-- Restore clock clicks to open and close Notification Center while icons are hidden. Hidden icons briefly reappear during activation; no cover or frozen menu-bar snapshot is used, so new and visible icons remain unobstructed.
-- Protect visible system controls from empty-space click handling.
-- Adapt the Layout strip to its available width, including the clock, separators and drag placeholder, without changing native menu bar spacing.
+### Highlights
+
+- Restored clicks on the menu bar clock to open and close Notification Center. Hidden icons briefly reappear during activation; no overlay covers the menu bar, so newly appearing icons remain unobstructed.
+- Preserved native interaction with visible system controls while handling clicks in empty menu bar areas and hidden icon spaces.
+- Made the Layout menu bar strip adapt to the available width, including icons, separators, the clock and the drag placeholder.
+- Retained configurable horizontal trackpad and mouse gestures for showing and hiding menu bar icons, with native icon order preserved.
+<!-- nimbar-release-sync:changelog:end -->
 
 ## 0.3.0 beta — build 49
 

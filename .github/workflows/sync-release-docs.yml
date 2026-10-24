@@ -1,0 +1,55 @@
+name: Sync release documentation
+
+on:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-release-docs
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Synchronize public documentation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 Scripts/sync_release_docs.py
+
+      - name: Validate documentation diff
+        run: git diff --check
+
+      - name: Commit documentation changes when needed
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if git diff --quiet -- README.md CHANGELOG.md SECURITY.md PRIVACY.md docs/INSTALLATION.md docs/UPDATES.md; then
+            echo "Documentation already matches the current release; no commit created."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md CHANGELOG.md SECURITY.md PRIVACY.md docs/INSTALLATION.md docs/UPDATES.md
+          git commit -m "docs: sync latest NimBar release"
+          git push origin "HEAD:${DEFAULT_BRANCH}"
+
+      - name: Manual review reminder
+        if: always()
+        run: |
+          {
+            echo "## Release documentation review"
+            echo "- Review SECURITY.md for the current signing and notarization status."
+            echo "- Review PRIVACY.md for changes to permissions, local processing, or network behavior."
+            echo "- Compatibility statements were not changed automatically; verify them separately before making a new claim."
+          } >> "$GITHUB_STEP_SUMMARY"

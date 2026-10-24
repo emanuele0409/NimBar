@@ -20,7 +20,9 @@
   <img src="https://img.shields.io/badge/License-GPL--3.0-blue" alt="GNU GPL version 3">
 </p>
 
-> **Latest beta: 0.3.0.** Download it from the [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases).
+<!-- nimbar-release-sync:readme-latest:start -->
+> **Latest public release: 0.3.0 beta (build 62).** [Release notes and downloads](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62).
+<!-- nimbar-release-sync:readme-latest:end -->
 
 ## Contents
 
@@ -54,7 +56,9 @@ The app is developed by [emanuele0409](https://github.com/emanuele0409) and is i
 | Drag and drop | Move supported items in the Layout view; changes are applied immediately. |
 | Live divider | Hold the configured modifier shortcut (⌘ + ⌥ by default) to show a divider and change an item's visibility by dragging it across. |
 | Reveal hidden items | Show or collapse the Hidden section from NimBar. Clicking an empty area of the menu bar can also reveal hidden items. |
+| Horizontal gestures | Use a configured left or right swipe with a trackpad or scrolling mouse to reveal or re-hide hidden items. |
 | Automatic hiding | Optionally collapse the revealed Hidden section after a chosen delay. |
+| Notification Center | Click the menu bar clock to open or close Notification Center. Hidden icons briefly reappear while macOS opens it. |
 | Appearance and language | Choose light, dark, or system appearance, and use English or Italian. |
 | Menu bar controls | Choose NimBar's menu bar symbol and configure the modifier shortcut. |
 | Multiple displays | Layout stays tied to the main display while the live divider follows the display under the pointer. |
@@ -85,9 +89,11 @@ A comparison of the menu bar with managed icons hidden and with them revealed.
 
 ## Download
 
-The latest beta is **0.3.0**. Download the DMG or ZIP from the [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases).
+<!-- nimbar-release-sync:readme-download:start -->
+The current public release is **0.3.0 beta (build 62)**. Download the DMG or ZIP from the [release page](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62).
+<!-- nimbar-release-sync:readme-download:end -->
 
-This link remains stable across versions. Each release includes the current version details and verified package checksums.
+Each release includes version details and verified package checksums.
 
 ## Compatibility
 
@@ -103,7 +109,9 @@ Compatibility claims describe the current target and supported release configura
 
 ## Installation
 
-Download the current beta from [GitHub Releases](https://github.com/emanuele0409/NimBar/releases/tag/v0.2.1-beta.46). Choose the DMG for guided installation or the ZIP for manual installation. See [Installation](docs/INSTALLATION.md) for the steps.
+<!-- nimbar-release-sync:readme-installation:start -->
+Download NimBar **0.3.0 beta (build 62)** from the official [GitHub release page](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62). Choose the DMG for guided installation or the ZIP for manual installation. See [Installation](docs/INSTALLATION.md) for the steps.
+<!-- nimbar-release-sync:readme-installation:end -->
 
 ## Opening NimBar for the First Time
 
@@ -132,7 +140,9 @@ The menu bar discovery and visibility implementation uses undocumented macOS int
 - Manual update checks use the public GitHub Releases API. When a newer release is found, NimBar opens its release page so you can review the notes and download it manually.
 - Automatic update checks can be enabled in Settings. Automatic download and installation remain planned until packages can be verified with a trusted signature.
 
-The current public beta is [0.2.1 beta, build 46](https://github.com/emanuele0409/NimBar/releases/tag/v0.2.1-beta.46). See [Update Design](docs/UPDATES.md) for the release tag format and signing requirements.
+<!-- nimbar-release-sync:readme-updates:start -->
+The current public release is **0.3.0 beta (build 62)** ([release page](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62)). See [Update Design](docs/UPDATES.md) for the release tag format and signing requirements.
+<!-- nimbar-release-sync:readme-updates:end -->
 
 ## Roadmap
 

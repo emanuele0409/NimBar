@@ -2,9 +2,11 @@
 
 ## Current distribution status
 
-NimBar is not publicly released yet. The current development build is locally signed, is not signed with a Developer ID distribution identity, and is not notarized by Apple. Do not treat a local build or checksum as proof of publisher identity. A public release should document its signing and notarization status accurately.
+NimBar is publicly available from the official [GitHub Releases page](https://github.com/emanuele0409/NimBar/releases). Current release details and package checksums are published with each release.
 
-## Opening a future download
+Public packages are signed with an Apple Development certificate. They are not notarized and do not use a Developer ID distribution certificate. An Apple Development signature is not the same as a Developer ID distribution signature, and a checksum published beside a package helps detect file changes but does not independently prove who published it. Review the release page and these signing details before opening a download.
+
+## Opening a release download
 
 macOS Gatekeeper may block an app that is not notarized or whose developer cannot be verified. Only consider the following override when all of these are true: you obtained NimBar from the official [NimBar Releases page](https://github.com/emanuele0409/NimBar/releases), you trust that source, and the warning concerns verification/notarization rather than malware or damage.
 
@@ -25,7 +27,7 @@ Do **not** use this override if macOS says the app is malicious, damaged, or has
 - The app is not sandboxed. Review [Privacy](PRIVACY.md) for the data it reads and stores.
 - The update checker makes read-only HTTPS requests to the public GitHub Releases API only after a manual check or when automatic checks are enabled. It does not execute remote commands or download/install release assets. No telemetry or remote-control listener is present.
 - Automatic package installation remains disabled until NimBar can validate package signatures and the app's expected signing identity.
-- The current build's signature is local and does not establish a trusted Developer ID publisher identity.
+- The public Apple Development signature does not establish the trust provided by a Developer ID distribution identity.
 
 ## Reporting a vulnerability
 

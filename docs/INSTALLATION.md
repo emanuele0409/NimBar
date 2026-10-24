@@ -1,6 +1,8 @@
 # Installation
 
-Download NimBar only from the official [GitHub Releases page](https://github.com/emanuele0409/NimBar/releases/tag/v0.2.1-beta.46). No Xcode installation is required for end users.
+<!-- nimbar-release-sync:installation-current:start -->
+Download NimBar **0.3.0 beta (build 62)** only from the official [GitHub release page](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62). No Xcode installation is required for end users.
+<!-- nimbar-release-sync:installation-current:end -->
 
 ## DMG
 
@@ -18,7 +20,7 @@ Download NimBar only from the official [GitHub Releases page](https://github.com
 
 ## First launch
 
-The current development build is not notarized by Apple and has no Developer ID distribution signature. macOS may block its first launch. Read [Opening NimBar for the First Time](../SECURITY.md#opening-a-future-download) before responding to a Gatekeeper warning.
+The current public release is not notarized by Apple and has no Developer ID distribution signature. macOS may block its first launch. Read [Opening NimBar for the First Time](../SECURITY.md#opening-a-release-download) before responding to a Gatekeeper warning.
 
 Never override a warning that says NimBar is malicious, damaged, or has been modified. Do not disable Gatekeeper or remove the quarantine flag.
 

@@ -6,9 +6,12 @@ When a newer supported release is found, NimBar opens its GitHub release page so
 
 ## Verified repository state
 
+<!-- nimbar-release-sync:verified-release:start -->
+- Latest published release: **0.3.0 beta (build 62)** ([release notes and downloads](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62)). Its tag is `v0.3.0-beta.62` and its channel is **beta**.
+<!-- nimbar-release-sync:verified-release:end -->
+
 The following points were checked in the current repository source and packaging script; they describe this checkout, not a published build:
 
-- The Xcode project declares version `0.3.0`, build `49`, beta release channel, macOS deployment target `27.0`, and bundle identifier `com.nimbar.NimBar`.
 - `GitHubReleaseService` performs a read-only request for the newest 30 published releases. It ignores drafts and unsupported version tags. It recognizes stable `vMAJOR.MINOR.PATCH`, beta `vMAJOR.MINOR.PATCH-beta.BUILD`, and alpha `vMAJOR.MINOR.PATCH.REVISION-alpha.BUILD`. The prerelease suffix must agree with GitHub's prerelease flag. Only alpha clients select alpha releases; beta clients continue to select beta/stable releases.
 - Release asset URLs are not downloaded by the app. The app opens only an HTTPS release page hosted at `github.com/emanuele0409/NimBar/releases/`.
 - The local packaging script asks Xcode to use an `Apple Development` signing identity, verifies the signature and Team ID, and does not notarize the package.
@@ -91,6 +94,10 @@ Manual installation instructions should explain Gatekeeper in a way that matches
 - [Sparkle — security and reliability](https://sparkle-project.org/documentation/security-and-reliability/)
 - [Semantic Versioning 2.0.0](https://semver.org/)
 
-## Local alpha development
+## Channel selection and release order
 
-The current release is 0.3.0 beta, build 49, tagged `v0.3.0-beta.49`. Beta clients select beta or stable releases; stable clients only select stable releases. For the same base version, stable > beta > alpha. Alpha revisions and internal builds remain separate from beta build tags.
+Release tags follow the app's supported version and channel format. Beta clients can select beta or stable releases; stable clients select stable releases. For the same base version, stable sorts after beta, and beta sorts after alpha. Alpha revisions remain separate from beta build tags.
+
+## Public release documentation sync
+
+`.github/workflows/sync-release-docs.yml` runs when a release is published or edited and can be started manually with `workflow_dispatch`. It selects releases by their supported numeric version, channel precedence, and build suffix rather than by the last modification timestamp. The workflow also provides the initial synchronization for the existing build 62 release; run it once manually after enabling Actions. The workflow commits only when generated documentation changes. GitHub does not start another workflow for most events caused by `GITHUB_TOKEN`; this sync therefore completes the documentation update in the same run, and `workflow_dispatch` remains available for recovery or a manual refresh. Each run asks for a manual review of `SECURITY.md` and `PRIVACY.md`, because signing, notarization, permissions, or data behavior may change independently of release metadata.
