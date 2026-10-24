@@ -65,14 +65,23 @@ Launch at login is available in General settings through macOS Login Items. The 
 
 ## Screenshots
 
-Clean, real screenshots are not included yet. The repository does not currently contain presentation-ready captures, and no personal desktop screenshots are used as substitutes. Screenshots will be added here after they have been reviewed and sanitised.
+### General settings
 
-Planned views:
+Choose the app language and appearance, configure the live divider and automatic hiding, set swipe gestures, and manage launch-at-login and menu bar behavior.
 
-- General settings
-- Layout
-- Managing hidden menu bar items
-- NimBar in the macOS menu bar
+![NimBar General settings](assets/screenshots/NimBar_Generali.png)
+
+### Menu bar layout
+
+Choose NimBar's menu bar symbol, reveal hidden items, and arrange supported menu bar icons in the Layout view.
+
+![NimBar Layout view](assets/screenshots/NimBar_Layout_Dettaglio.png)
+
+### Hidden and revealed icons
+
+A comparison of the menu bar with managed icons hidden and with them revealed.
+
+![Menu bar with icons hidden and revealed](assets/screenshots/NimBar_Confronto_Icone.png)
 
 ## Download
 
