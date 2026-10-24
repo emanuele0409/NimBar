@@ -251,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                       ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == intent.displayID
                   }),
                   self.menuBarRect(on: sourceScreen)?.contains(NSEvent.mouseLocation) == true,
-                  self.canOpenMenuForRightClick(at: intent.origin) else { return }
+                  self.canInteractWithEmptyMenuBarSpace(at: intent.origin) else { return }
             if shouldShow {
                 if self.layout.isCollapsed { self.showManagedItems() }
             } else if !self.layout.isCollapsed {
@@ -276,7 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         dividerAccessibility.refresh { [weak self] in
             guard let self, token == self.blankClickGeneration, !self.dividerModifiersActive,
                   self.liveEditor?.isBusy != true, self.dividerAccessibility.displayID == displayID,
-                  self.isBlankMenuBarLocation(location) else { return }
+                  self.canInteractWithEmptyMenuBarSpace(at: location) else { return }
             self.showManagedItems()
         }
     }
@@ -294,12 +294,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             guard let self, token == self.blankClickGeneration,
                   !self.dividerModifiersActive, self.liveEditor?.isBusy != true,
                   self.dividerAccessibility.displayID == displayID,
-                  self.canOpenMenuForRightClick(at: location) else { return }
+                  self.canInteractWithEmptyMenuBarSpace(at: location) else { return }
             statusMenu.popUp(positioning: nil, at: location, in: nil)
         }
     }
 
-    private func canOpenMenuForRightClick(at location: NSPoint) -> Bool {
+    private func canInteractWithEmptyMenuBarSpace(at location: NSPoint) -> Bool {
         guard isBlankMenuBarLocation(location),
               let screen = NSScreen.screens.first(where: { $0.frame.contains(location) }),
               let point = accessibilityPoint(for: location, on: screen) else { return false }
@@ -315,7 +315,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             // item after NimBar hides it. Only that exact hidden footprint is
             // allowed to open NimBar's menu.
             return dividerAccessibility.liveItems.contains { candidate in
-                candidate.processIdentifier == processIdentifier
+                !candidate.isSystemOwned
+                    && candidate.processIdentifier == processIdentifier
                     && (layout.isAlwaysHidden(candidate)
                         || (layout.isCollapsed && layout.hiddenBundleIDs.contains(candidate.bundleIdentifier)))
                     && candidate.frame.insetBy(dx: -3, dy: -3).contains(point)
@@ -338,22 +339,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             layout.isAlwaysHidden(candidate)
                 || (layout.isCollapsed && layout.hiddenBundleIDs.contains(candidate.bundleIdentifier))
         }
-        let hiddenItemOccupiesPoint = dividerAccessibility.liveItems.contains { candidate in
-            isCurrentlyHidden(candidate)
+        // Visible items win over stale footprints of hidden icons. In
+        // particular, the clock must remain a native Notification Center target.
+        if dividerAccessibility.liveItems.contains(where: { candidate in
+            (candidate.isSystemOwned || !isCurrentlyHidden(candidate))
                 && candidate.frame.insetBy(dx: -3, dy: -3).contains(pointInAccessibilitySpace)
-        }
-        // macOS may keep reporting the old bounds of an item that NimBar has
-        // hidden. Treat that footprint as an available empty reveal target.
-        if !hiddenItemOccupiesPoint {
-            if dividerAccessibility.liveItems.contains(where: { candidate in
-                !isCurrentlyHidden(candidate)
-                    && candidate.frame.insetBy(dx: -3, dy: -3).contains(pointInAccessibilitySpace)
-            }) { return false }
+        }) { return false }
 
-            if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-               MenuBarAccessibility.applicationMenuBarFrames(processIdentifier: frontmostPID)
-                .contains(where: { $0.insetBy(dx: -2, dy: -2).contains(pointInAccessibilitySpace) }) { return false }
-        }
+        if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+           MenuBarAccessibility.applicationMenuBarFrames(processIdentifier: frontmostPID)
+            .contains(where: { $0.insetBy(dx: -2, dy: -2).contains(pointInAccessibilitySpace) }) { return false }
         return true
     }
 

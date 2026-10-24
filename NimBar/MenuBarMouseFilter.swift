@@ -25,6 +25,8 @@ struct MenuBarMouseRouting {
 @MainActor
 final class MenuBarMouseFilter {
     var routing = MenuBarMouseRouting()
+    var onClockEvent: ((CGEventType, CGEvent) -> Bool)?
+    var onClockInterrupted: (() -> Void)?
     var onCapturedEvent: ((CGEventType, CGPoint) -> Void)?
     var onPassedLeftDown: ((CGPoint) -> Void)?
     var onAvailabilityChanged: ((Bool) -> Void)?
@@ -68,6 +70,7 @@ final class MenuBarMouseFilter {
 
     private func route(_ type: CGEventType, event: CGEvent) -> Bool {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            onClockInterrupted?()
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -75,6 +78,7 @@ final class MenuBarMouseFilter {
             }
             return false
         }
+        if onClockEvent?(type, event) == true { return true }
         let point = event.location
         let flags = event.flags
         let modifiers = (flags.contains(.maskCommand) ? 1 : 0) | (flags.contains(.maskAlternate) ? 2 : 0)

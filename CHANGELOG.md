@@ -2,9 +2,11 @@
 
 User-facing highlights. Detailed build notes are maintained during development; public release notes are published on GitHub Releases.
 
-## Unreleased
+## 0.3.0 beta — build 62
 
-Release prepared: 0.3.0 beta (build 49). Tag: `v0.3.0-beta.49`.
+- Restore clock clicks to open and close Notification Center while icons are hidden. Hidden icons briefly reappear during activation; no cover or frozen menu-bar snapshot is used, so new and visible icons remain unobstructed.
+- Protect visible system controls from empty-space click handling.
+- Adapt the Layout strip to its available width, including the clock, separators and drag placeholder, without changing native menu bar spacing.
 
 ## 0.3.0 beta — build 49
 

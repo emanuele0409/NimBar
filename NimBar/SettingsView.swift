@@ -620,38 +620,60 @@ private struct LayoutBoard: View {
                 Spacer()
                 Text(L10n.format("%@ icone", String(candidates.count))).font(.caption2).foregroundStyle(secondaryText)
             }
-            let iconSize = access.layoutIconPointSize
-            let itemGap: CGFloat = 10
-            let groupGap: CGFloat = 6
-            let emptySlot: CGFloat = 18
-            HStack(spacing: groupGap) {
-                zoneContent(.alwaysHidden, iconSize: iconSize, itemGap: itemGap, emptySlot: emptySlot)
-                divider(index: 0)
-                zoneContent(.hidden, iconSize: iconSize, itemGap: itemGap, emptySlot: emptySlot)
-                divider(index: 1)
-                zoneContent(.visible, iconSize: iconSize, itemGap: itemGap, emptySlot: emptySlot)
-                Spacer(minLength: 0)
+            GeometryReader { geometry in
+                // Include image widths (the clock is wider than an icon), gaps,
+                // separators and a spare drag marker in the same width budget.
+                let available = max(0, geometry.size.width - 16)
+                let scale = min(1, available / max(naturalContentWidth, 1))
+                HStack(spacing: 6 * scale) {
+                    zoneContent(.alwaysHidden, scale: scale)
+                    divider(index: 0, scale: scale)
+                    zoneContent(.hidden, scale: scale)
+                    divider(index: 1, scale: scale)
+                    zoneContent(.visible, scale: scale)
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(width: available, height: 42, alignment: .leading)
+                .padding(.horizontal, 8)
             }
-            .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, minHeight: 42, maxHeight: 42, alignment: .leading)
-            .modifier(NimBarCardSurface(cornerRadius: 10))
-            .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.78), value: previewIDs)
             .frame(height: 42)
+            .clipped()
+            .modifier(NimBarCardSurface(cornerRadius: 10))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func divider(index: Int) -> some View {
+    private var naturalContentWidth: CGFloat {
+        let zones: [MenuBarLayoutZone] = [.alwaysHidden, .hidden, .visible]
+        let zoneWidths = zones.reduce(CGFloat.zero) { total, zone in
+            let items = baseCandidates(in: zone)
+            return total + (items.isEmpty ? 18 : items.reduce(CGFloat.zero) {
+                $0 + naturalWidth(for: $1) + 10
+            })
+        }
+        // Reserve a marker at all times: entering/leaving a drop target must
+        // not repeatedly change the scale and move that target under the mouse.
+        return zoneWidths + 2 * 8 + 4 * 6 + access.layoutIconPointSize + 10
+    }
+
+    private func naturalWidth(for candidate: MenuBarCandidate) -> CGFloat {
+        max(access.layoutIconPointSize, access.layoutImage(for: candidate)?.size.width ?? 0)
+    }
+
+    private func divider(index: Int, scale: CGFloat) -> some View {
         Capsule()
             .fill(index == 0 ? Color.orange : Color.accentColor)
-            .frame(width: 2, height: 22)
-            .frame(width: 8, height: 32)
+            .frame(width: 2 * scale, height: 22 * scale)
+            .frame(width: 8 * scale, height: 32)
             .accessibilityLabel(index == 0 ? L10n.text("Separatore: Sempre nascoste e Nascoste") : L10n.text("Separatore: Nascoste e Visibili"))
             .help(index == 0 ? L10n.text("Sempre nascoste / Nascoste") : L10n.text("Nascoste / Visibili"))
     }
 
     @ViewBuilder
-    private func zoneContent(_ zone: MenuBarLayoutZone, iconSize: CGFloat, itemGap: CGFloat, emptySlot: CGFloat) -> some View {
+    private func zoneContent(_ zone: MenuBarLayoutZone, scale: CGFloat) -> some View {
+        let iconSize = access.layoutIconPointSize * scale
+        let itemGap = 10 * scale
+        let emptySlot = 18 * scale
         let zoneCandidates = baseCandidates(in: zone)
         let previewIndex = state.dropPreview?.zone == zone ? state.dropPreview?.insertionIndex : nil
         HStack(spacing: itemGap) {
@@ -664,7 +686,7 @@ private struct LayoutBoard: View {
             } else {
                 ForEach(Array(zoneCandidates.enumerated()), id: \.element.id) { index, candidate in
                     if previewIndex == index { dropMarker(iconSize: iconSize) }
-                    iconView(for: candidate, size: iconSize)
+                    iconView(for: candidate, scale: scale)
                 }
                 if previewIndex == zoneCandidates.count { dropMarker(iconSize: iconSize) }
             }
@@ -682,9 +704,9 @@ private struct LayoutBoard: View {
     }
 
     @ViewBuilder
-    private func iconView(for candidate: MenuBarCandidate, size: CGFloat) -> some View {
-        let icon = MenuBarIcon(candidate: candidate, image: access.layoutImage(for: candidate))
-            .frame(width: max(size, access.layoutImage(for: candidate)?.size.width ?? size), height: 30)
+    private func iconView(for candidate: MenuBarCandidate, scale: CGFloat) -> some View {
+        let icon = MenuBarIcon(candidate: candidate, image: access.layoutImage(for: candidate), scale: scale)
+            .frame(width: naturalWidth(for: candidate) * scale, height: 30)
             .contentShape(Rectangle())
             .help(displayName(for: candidate))
         if candidate.isSystemOwned {
@@ -702,7 +724,7 @@ private struct LayoutBoard: View {
                 return provider
             } preview: {
                 MenuBarIcon(candidate: candidate, image: access.layoutImage(for: candidate))
-                    .frame(width: max(20, size), height: max(20, size))
+                    .frame(width: naturalWidth(for: candidate), height: 30)
             }
         }
     }
@@ -876,13 +898,16 @@ private struct LayoutZoneDropDelegate: DropDelegate {
 private struct MenuBarIcon: View {
     let candidate: MenuBarCandidate
     let image: NSImage?
+    var scale: CGFloat = 1
 
     var body: some View {
         Group {
             if let image {
                 Image(nsImage: image)
+                    .resizable()
                     .interpolation(.high)
                     .renderingMode(image.isTemplate ? .template : .original)
+                    .frame(width: image.size.width * scale, height: min(30, image.size.height) * scale)
                     .foregroundStyle(.primary)
             } else {
                 Color.clear

@@ -80,6 +80,30 @@ final class MenuBarLayoutController: ObservableObject {
     @Published private(set) var hiddenBundleIDs = Set(UserDefaults.standard.stringArray(forKey: "nativeHiddenBundleIDs") ?? [])
     @Published private(set) var alwaysHiddenBundleIDs = Set(UserDefaults.standard.stringArray(forKey: "nativeAlwaysHiddenBundleIDs") ?? [])
 
+    private var clockBridgeActive = false
+    private var clockRestoreCompletion: (() -> Void)?
+    var canBridgeClock: Bool {
+        !clockBridgeActive && !visibilityInFlight && !isEditingLiveDivider &&
+        !Self.bundlesToHide(hidden: hiddenBundleIDs, alwaysHidden: alwaysHiddenBundleIDs, isCollapsed: isCollapsed).isEmpty
+    }
+    func beginClockBridge() -> Bool {
+        guard canBridgeClock else { return false }
+        clockBridgeActive = true
+        hider.restoreAll()
+        return true
+    }
+    func endClockBridge(completion: @escaping () -> Void) {
+        guard clockBridgeActive else { completion(); return }
+        clockBridgeActive = false
+        clockRestoreCompletion = completion
+        applyVisibility()
+    }
+    private func notifyVisibilityApplied() {
+        onVisibilityApplied?()
+        let completion = clockRestoreCompletion
+        clockRestoreCompletion = nil
+        completion?()
+    }
     private let hider = MenuBarNativeHider()
     private var moveGeneration = 0
     private var liveHiddenOverrides: Set<String> = []
@@ -267,6 +291,7 @@ final class MenuBarLayoutController: ObservableObject {
     private func applyVisibility(verification: (hiddenBundles: Set<String>, visibleBundle: String?)? = nil,
                                  rollback: (Set<String>, Set<String>, Bool)? = nil,
                                  generation: Int? = nil) {
+        guard !clockBridgeActive else { return }
         visibilityRevision += 1
         let revision = visibilityRevision
         if visibilityInFlight {
@@ -289,7 +314,7 @@ final class MenuBarLayoutController: ObservableObject {
             hider.restoreAll()
             isMovingItem = false
             status = LocalizedMessage("Tutte le icone sono visibili.")
-            onVisibilityApplied?()
+            notifyVisibilityApplied()
             return
         }
         isMovingItem = true
@@ -312,9 +337,9 @@ final class MenuBarLayoutController: ObservableObject {
                         _ = rollback
                         self.applyVisibility()
                     }
-                    self.onVisibilityApplied?()
+                    self.notifyVisibilityApplied()
                 } else {
-                    self.onVisibilityApplied?()
+                    self.notifyVisibilityApplied()
                     guard let verification else {
                         self.isMovingItem = false
                         self.status = self.isCollapsed ? LocalizedMessage("Sezione Nascoste chiusa.") : LocalizedMessage("Layout applicato subito alla barra dei menu.")

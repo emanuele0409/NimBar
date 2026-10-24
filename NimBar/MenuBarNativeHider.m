@@ -162,7 +162,8 @@
         @"com.apple.launchpad",
         @"com.apple.Launchpad",
         @"com.apple.Spotlight",
-        @"com.apple.finder"
+        @"com.apple.finder",
+        @"com.apple.notificationcenterui"
     ]];
     for (NSRunningApplication *application in NSWorkspace.sharedWorkspace.runningApplications) {
         NSString *identifier = application.bundleIdentifier;

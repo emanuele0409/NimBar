@@ -81,6 +81,7 @@ final class LiveMenuBarEditor {
     private let onEnd: () -> Void
     private let onCommit: () -> Void
     private let filter = MenuBarMouseFilter()
+    private let clockBridge: ClockClickBridge
     private var requestedActive = false
     private var editing = false
     private var generation = 0
@@ -105,15 +106,18 @@ final class LiveMenuBarEditor {
     var onInputAvailabilityChanged: ((Bool) -> Void)?
     var onBlankMouseDown: ((CGPoint) -> Void)?
 
-    var isBusy: Bool { session != nil || filter.routing.captured || settling }
+    var isBusy: Bool { session != nil || filter.routing.captured || settling || clockBridge.isBusy }
 
     init(access: MenuBarAccessibility, layout: MenuBarLayoutController,
          onBegin: @escaping () -> Void, onEnd: @escaping () -> Void, onCommit: @escaping () -> Void) {
+        self.clockBridge = ClockClickBridge(layout: layout, onBegin: onBegin, onEnd: onEnd)
         self.access = access
         self.layout = layout
         self.onBegin = onBegin
         self.onEnd = onEnd
         self.onCommit = onCommit
+        filter.onClockEvent = { [weak self] in self?.clockBridge.route($0, event: $1) ?? false }
+        filter.onClockInterrupted = { [weak self] in self?.clockBridge.cancel() }
         filter.onCapturedEvent = { [weak self] type, point in
             guard let self else { return }
             switch type {
@@ -139,6 +143,8 @@ final class LiveMenuBarEditor {
     func prepareInput() -> Bool { filter.prepare() }
 
     func update(isActive: Bool, pointer: CGPoint?, shortcut: Int) {
+        clockBridge.refreshIfNeeded()
+        guard !clockBridge.isBusy else { return }
         requestedActive = isActive
         filter.routing.shortcut = shortcut
         if isActive && !editing {
