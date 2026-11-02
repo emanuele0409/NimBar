@@ -21,7 +21,7 @@
 </p>
 
 <!-- nimbar-release-sync:readme-latest:start -->
-> **Latest public release: 0.3.0 beta (build 62).** [Release notes and downloads](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62).
+> **Latest public release: 1.0.0.** [Release notes and downloads](https://github.com/emanuele0409/NimBar/releases/tag/v1.0.0).
 <!-- nimbar-release-sync:readme-latest:end -->
 
 ## Contents
@@ -90,7 +90,7 @@ A comparison of the menu bar with managed icons hidden and with them revealed.
 ## Download
 
 <!-- nimbar-release-sync:readme-download:start -->
-The current public release is **0.3.0 beta (build 62)**. Download the DMG or ZIP from the [release page](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62).
+The current public release is **1.0.0**. Download the DMG or ZIP from the [release page](https://github.com/emanuele0409/NimBar/releases/tag/v1.0.0).
 <!-- nimbar-release-sync:readme-download:end -->
 
 Each release includes version details and verified package checksums.
@@ -110,12 +110,12 @@ Compatibility claims describe the current target and supported release configura
 ## Installation
 
 <!-- nimbar-release-sync:readme-installation:start -->
-Download NimBar **0.3.0 beta (build 62)** from the official [GitHub release page](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62). Choose the DMG for guided installation or the ZIP for manual installation. See [Installation](docs/INSTALLATION.md) for the steps.
+Download NimBar **1.0.0** from the official [GitHub release page](https://github.com/emanuele0409/NimBar/releases/tag/v1.0.0). Choose the DMG for guided installation or the ZIP for manual installation. See [Installation](docs/INSTALLATION.md) for the steps.
 <!-- nimbar-release-sync:readme-installation:end -->
 
 ## Opening NimBar for the First Time
 
-This beta is not notarized by Apple and does not use a Developer ID distribution signature. macOS may therefore block its first launch or say that the developer cannot be verified. Read [Security](SECURITY.md) before opening the download.
+NimBar is not notarized by Apple and does not use a Developer ID distribution signature. macOS may therefore block its first launch or say that the developer cannot be verified. Read [Security](SECURITY.md) before opening the download.
 
 Use macOS's **Open Anyway** option only if you trust the source and have verified that you downloaded the intended release. Do not override an alert that says NimBar is malicious, damaged, or has been tampered with. Apple may change the exact wording and location of these controls; see its [macOS 27 instructions](https://support.apple.com/en-gb/guide/mac-help/mh40617/27/mac/27) and [security guidance](https://support.apple.com/it-it/102445).
 
@@ -141,7 +141,7 @@ The menu bar discovery and visibility implementation uses undocumented macOS int
 - Automatic update checks can be enabled in Settings. Automatic download and installation remain planned until packages can be verified with a trusted signature.
 
 <!-- nimbar-release-sync:readme-updates:start -->
-The current public release is **0.3.0 beta (build 62)** ([release page](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62)). See [Update Design](docs/UPDATES.md) for the release tag format and signing requirements.
+The current public release is **1.0.0** ([release page](https://github.com/emanuele0409/NimBar/releases/tag/v1.0.0)). See [Update Design](docs/UPDATES.md) for the release tag format and signing requirements.
 <!-- nimbar-release-sync:readme-updates:end -->
 
 ## Roadmap

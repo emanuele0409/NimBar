@@ -3,10 +3,28 @@ import XCTest
 import AppKit
 import ServiceManagement
 import QuartzCore
+import ApplicationServices
 @testable import NimBar
 
 @MainActor
 final class SettingsStoreTests: XCTestCase {
+    func testClockCacheDiscoveryAndStaleResults() {
+        XCTAssertTrue(ClockCachePolicy.needsFullScan(referenceCount: 0, age: 1))
+        XCTAssertFalse(ClockCachePolicy.needsFullScan(referenceCount: 2, age: 29))
+        XCTAssertTrue(ClockCachePolicy.needsFullScan(referenceCount: 2, age: 30))
+        XCTAssertTrue(ClockCachePolicy.needsFullScan(referenceCount: 2, age: -1))
+        XCTAssertTrue(ClockCachePolicy.acceptsResult(startGeneration: 3, currentGeneration: 3, busy: false))
+        XCTAssertFalse(ClockCachePolicy.acceptsResult(startGeneration: 3, currentGeneration: 4, busy: false))
+        XCTAssertFalse(ClockCachePolicy.acceptsResult(startGeneration: 3, currentGeneration: 3, busy: true))
+    }
+
+    func testInvalidClockAccessibilityReferenceIsRejected() {
+        let candidate = MenuBarCandidate(id: "clock", bundleIdentifier: "com.apple.systemuiserver",
+            applicationName: "SystemUIServer", label: "Clock", identifier: "clock",
+            processIdentifier: -1, index: 0, x: 0, y: 0, width: 20, height: 20)
+        let reference = ClockAXReference(element: AXUIElementCreateApplication(-1), agentPID: -1, candidate: candidate)
+        XCTAssertNil(MenuBarAccessibility.refreshClockReference(reference))
+    }
     func testDefaultsAreSafeAndDisabled() {
         let store = SettingsStore(defaults: makeDefaults())
         XCTAssertFalse(store.autoHideEnabled)
@@ -78,6 +96,14 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(beta.isNewer(than: nextAlpha))
         XCTAssertTrue(stable.isNewer(than: beta))
         XCTAssertFalse(nextAlpha.isNewer(than: stable))
+    }
+
+    func testStableOneIsNewerThanPreviousBeta() {
+        let url = URL(string: "https://example.invalid/NimBar.dmg")!
+        let stable = AppUpdateRelease(version: "1.0.0", build: 0, assetURL: url)
+        let previous = AppUpdateRelease(version: "0.3.0", build: 68, assetURL: url, isPrerelease: true)
+        XCTAssertTrue(stable.isNewer(than: previous))
+        XCTAssertFalse(previous.isNewer(than: stable))
     }
 
     func testReleaseDiscoveryKeepsAlphaOutOfBetaAndStableChannels() async throws {

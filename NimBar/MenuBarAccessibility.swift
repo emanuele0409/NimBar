@@ -39,6 +39,13 @@ enum MenuBarHitTestResult: Sendable {
     case unavailable
 }
 
+/// AX handles are only read on the single in-flight clock scan task.
+struct ClockAXReference: @unchecked Sendable {
+    let element: AXUIElement
+    let agentPID: pid_t
+    let candidate: MenuBarCandidate
+}
+
 @MainActor
 final class MenuBarAccessibility: ObservableObject {
     @Published private(set) var isTrusted = AXIsProcessTrusted()
@@ -224,7 +231,7 @@ final class MenuBarAccessibility: ObservableObject {
                 return
             }
             let found = Self.candidates(result.items, on: displayBounds)
-            liveItems = found
+            if liveItems != found { liveItems = found }
             scannedProcesses = result.scannedProcesses
             accessibleProcesses = result.accessibleProcesses
             let cacheKey = "knownMenuBarCandidates.v2.display.\(display)"
@@ -237,7 +244,7 @@ final class MenuBarAccessibility: ObservableObject {
                 var byBundle = Dictionary(knownCandidates.map { ($0.bundleIdentifier, $0) }, uniquingKeysWith: { first, _ in first })
                 for candidate in found { byBundle[candidate.bundleIdentifier] = candidate }
                 knownCandidates = Array(byBundle.values)
-                if let data = try? JSONEncoder().encode(knownCandidates) {
+                if let data = try? JSONEncoder().encode(knownCandidates), data != savedCandidates {
                     UserDefaults.standard.set(data, forKey: cacheKey)
                 }
             }
@@ -319,9 +326,10 @@ final class MenuBarAccessibility: ObservableObject {
         // Layout is intentionally pinned to the primary display. Live editing
         // uses a separate scanner owned by AppDelegate for the active screen.
         refresh()
-        liveRefreshTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+        liveRefreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.refresh() }
         }
+        liveRefreshTimer?.tolerance = 0.5
     }
 
     func stopLiveUpdates() {
@@ -591,6 +599,11 @@ final class MenuBarAccessibility: ObservableObject {
     }
 
     nonisolated static func enumerateMenuExtrasWithDiagnostics() -> (items: [MenuBarCandidate], scannedProcesses: Int, accessibleProcesses: Int) {
+        let scan = scanMenuExtras()
+        return (scan.items, scan.scannedProcesses, scan.accessibleProcesses)
+    }
+
+    nonisolated static func scanMenuExtras() -> (items: [MenuBarCandidate], scannedProcesses: Int, accessibleProcesses: Int, clocks: [ClockAXReference]) {
         let apps = NSWorkspace.shared.runningApplications.filter {
             !$0.isTerminated && $0.processIdentifier != getpid()
         }
@@ -598,11 +611,12 @@ final class MenuBarAccessibility: ObservableObject {
             ["com.apple.MenuBarAgent", "com.apple.controlcenter", "com.apple.systemuiserver"].contains($0.bundleIdentifier ?? "")
         }
         guard !agents.isEmpty else {
-            return ([], apps.count, 0)
+            return ([], apps.count, 0, [])
         }
         var result: [MenuBarCandidate] = []
         var groupCount = 0
         var seen = Set<String>()
+        var clocks: [ClockAXReference] = []
 
         for agent in agents {
             let root = AXUIElementCreateApplication(agent.processIdentifier)
@@ -663,13 +677,35 @@ final class MenuBarAccessibility: ObservableObject {
                         width: frame.width, height: frame.height
                     )
                     result.append(candidate)
+                    if candidate.isClock { clocks.append(ClockAXReference(element: group, agentPID: agent.processIdentifier, candidate: candidate)) }
                 }
             }
         }
         // Do not drop an AX item because another item's Window Server frame
         // happened to match. Each image is matched independently at capture time.
         let discovered = result
-        return (discovered.sorted { $0.x < $1.x }, apps.count, groupCount)
+        return (discovered.sorted { $0.x < $1.x }, apps.count, groupCount, clocks)
+    }
+
+    /// Reject stale or repurposed elements; a caller can then rediscover them.
+    nonisolated static func refreshClockReference(_ reference: ClockAXReference) -> MenuBarCandidate? {
+        let element = reference.element
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success, pid == reference.agentPID,
+              let rect = frame(of: element), rect.width > 0, rect.height > 0 else { return nil }
+        var owners = Set<pid_t>(), titles: [String] = [], identifiers: [String] = []
+        var remaining = 384
+        describe(element, agentPID: reference.agentPID, depth: 0, remainingNodes: &remaining,
+                 owners: &owners, titles: &titles, identifiers: &identifiers)
+        let original = reference.candidate
+        let label = titles.first ?? identifiers.first ?? ""
+        guard identifiers.first == original.identifier, label == original.label,
+              owners.isEmpty ? original.processIdentifier == reference.agentPID : owners == [original.processIdentifier] else { return nil }
+        return MenuBarCandidate(id: original.id, bundleIdentifier: original.bundleIdentifier,
+                                applicationName: original.applicationName, label: label,
+                                identifier: original.identifier, processIdentifier: original.processIdentifier,
+                                index: original.index, x: rect.origin.x, y: rect.origin.y,
+                                width: rect.width, height: rect.height)
     }
 
     private nonisolated static func children(of element: AXUIElement) -> [AXUIElement] {

@@ -84,7 +84,7 @@ final class MenuBarLayoutController: ObservableObject {
     private var clockRestoreCompletion: (() -> Void)?
     var canBridgeClock: Bool {
         !clockBridgeActive && !visibilityInFlight && !isEditingLiveDivider &&
-        !Self.bundlesToHide(hidden: hiddenBundleIDs, alwaysHidden: alwaysHiddenBundleIDs, isCollapsed: isCollapsed).isEmpty
+        (!alwaysHiddenBundleIDs.isEmpty || (isCollapsed && !hiddenBundleIDs.isEmpty))
     }
     func beginClockBridge() -> Bool {
         guard canBridgeClock else { return false }

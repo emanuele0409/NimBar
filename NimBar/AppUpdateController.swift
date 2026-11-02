@@ -284,7 +284,10 @@ final class AppUpdateController: ObservableObject {
             L10n.text("NimBar installerà l’aggiornamento quando le impostazioni saranno chiuse e nessun trascinamento sarà in corso. Puoi anche installarlo adesso.")
         case .failed(let message): message
         case .installed: L10n.text("NimBar verrà riavviata con la nuova versione.")
-        default: L10n.format("Versione attuale: %@ (build %@).", AppVersion.label(for: currentVersion), String(currentBuild))
+        default:
+            AppVersion.channel == "stable"
+                ? L10n.format("Versione attuale: %@.", currentVersion)
+                : L10n.format("Versione attuale: %@ (build %@).", AppVersion.label(for: currentVersion), String(currentBuild))
         }
     }
 

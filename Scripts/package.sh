@@ -81,7 +81,8 @@ ditto "$SIGNED_APP" "$WORK/content/NimBar.app"
 ln -s /Applications "$WORK/content/Applications"
 SWIFT_MODULECACHE_PATH="$WORK/swift-cache" CLANG_MODULE_CACHE_PATH="$WORK/clang-cache" \
     xcrun swift "$ROOT/Scripts/dmg-background.swift" "$WORK/content/.background/installer.png"
-hdiutil create -volname NimBar -srcfolder "$WORK/content" -ov -format UDRW "$WORK/installer.dmg"
+PUBLIC_VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$SIGNED_APP/Contents/Info.plist")
+hdiutil create -volname "NimBar $PUBLIC_VERSION" -srcfolder "$WORK/content" -ov -format UDRW "$WORK/installer.dmg"
 hdiutil attach -readwrite -nobrowse -mountpoint "$MOUNT" "$WORK/installer.dmg"
 python3 "$ROOT/Scripts/configure-dmg.py" "$MOUNT"
 sync

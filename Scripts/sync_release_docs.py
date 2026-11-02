@@ -68,7 +68,7 @@ def parse_release(raw: dict[str, Any]) -> Release | None:
     title = str(raw.get("name") or tag)
     body = str(raw.get("body") or "")
     build = int(suffix_build) if suffix_build else None
-    if build is None:
+    if build is None and channel != "stable":
         build_match = BUILD_PATTERN.search(title) or BUILD_PATTERN.search(body)
         if build_match:
             build = int(build_match.group(1))
@@ -158,7 +158,10 @@ def changelog_block(release: Release) -> str:
         changelog_heading(release),
         f"[Release notes and downloads]({release.url})",
     ]
-    if highlights:
+    stable_sections = re.search(r"^### What's New\s*$", release.body, re.MULTILINE) if release.channel == "stable" else None
+    if stable_sections:
+        lines.extend(["", release.body[stable_sections.start():].strip()])
+    elif highlights:
         lines.extend(["", "### Highlights", "", *highlights])
     lines.append("<!-- nimbar-release-sync:changelog:end -->")
     return "\n".join(lines)

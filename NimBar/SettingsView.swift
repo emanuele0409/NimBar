@@ -15,6 +15,7 @@ struct SettingsView: View {
     private typealias SettingsSection = SettingsStore.SettingsSection
     private var colorScheme: ColorScheme { store.effectiveColorScheme }
     private var secondaryText: Color { NimBarAppearance.secondaryText(for: colorScheme) }
+    @State private var hoveredSection: SettingsSection?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -33,7 +34,11 @@ struct SettingsView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 15)
-                .padding(.bottom, 8)
+                .padding(.bottom, 12)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color.primary.opacity(colorScheme == .light ? 0.08 : 0.10)).frame(height: 1)
+                        .padding(.horizontal, 18)
+                }
                 Group {
                     switch store.selectedSettingsSection ?? .general {
                     case .general: generalPanel
@@ -122,11 +127,17 @@ struct SettingsView: View {
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .fill(LinearGradient(colors: colorScheme == .light ? [Color(red: 0.0, green: 0.32, blue: 0.76), Color(red: 0.0, green: 0.38, blue: 0.84)] : [Color.accentColor, Color.accentColor.opacity(0.82)], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .shadow(color: Color.accentColor.opacity(0.20), radius: 7, y: 3)
+                } else if hoveredSection == section {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .fill(Color.primary.opacity(colorScheme == .light ? 0.055 : 0.08))
                 }
             }
             .foregroundStyle(selected ? Color.white : NimBarAppearance.primaryText(for: colorScheme))
         }
         .buttonStyle(.plain)
+        .onHover { hovering in hoveredSection = hovering ? section : (hoveredSection == section ? nil : hoveredSection) }
+        .help(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var selectedSectionTitle: String {
@@ -285,7 +296,10 @@ struct SettingsView: View {
                                              @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: symbol).font(.system(size: 11, weight: .bold)).foregroundStyle(tint)
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .bold)).foregroundStyle(tint)
+                    .frame(width: 18, height: 18)
+                    .background(tint.opacity(colorScheme == .light ? 0.12 : 0.18), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 Text(title).font(.system(size: 11, weight: .semibold))
                 Spacer()
             }
@@ -813,7 +827,8 @@ private struct NimBarCardSurface: ViewModifier {
                 shape.fill(.thinMaterial)
                     .overlay { shape.fill(Color.white.opacity(colorScheme == .light ? 0.48 : 0)) }
             }
-            .overlay(shape.stroke(Color.primary.opacity(colorScheme == .light ? 0.14 : 0.07)))
+            .overlay(shape.strokeBorder(Color.primary.opacity(colorScheme == .light ? 0.12 : 0.09)))
+            .shadow(color: Color.black.opacity(colorScheme == .light ? 0.035 : 0.10), radius: 5, y: 2)
     }
 }
 

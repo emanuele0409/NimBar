@@ -3,6 +3,47 @@
 User-facing highlights. Detailed build notes are maintained during development; public release notes are published on GitHub Releases.
 
 <!-- nimbar-release-sync:changelog:start -->
+<!-- release-tag: v1.0.0 -->
+## 1.0.0
+[Release notes and downloads](https://github.com/emanuele0409/NimBar/releases/tag/v1.0.0)
+
+### What's New
+
+- This is the first stable release and uses the stable update channel. The app presents a concise public version number.
+
+### Improvements
+
+- Refined the settings interface with clearer card outlines, sidebar hover feedback, and accessibility labels.
+- Stopped live Layout updates when the settings window closes and resumed them when Layout is reopened.
+- Improved the release documentation and added screenshots to help explain General settings, Layout, and hidden icons.
+
+### Performance Optimizations
+
+- Replaced continuous high-frequency modifier polling at idle with modifier-event monitoring and a low-frequency fallback; high-frequency updates are limited to active editing.
+- Reduced unnecessary Layout refreshes and writes when cached icon data has not changed.
+- Added a targeted Accessibility cache for the menu bar clock, with full rediscovery when references become invalid or the environment changes.
+- A development test of the preceding installed version measured 0.14% average idle CPU over five minutes; results depend on the device and conditions. This is not a measurement of every Mac or a guarantee for this release.
+
+### Bug Fixes
+
+- Avoided accepting stale clock-scan results after invalidation or while a clock operation is in progress.
+- Improved cleanup of clock observers and input monitors when the app exits.
+- Prevented a negative elapsed time from affecting the automatic-hide timer.
+- Corrected stable-version presentation and release documentation synchronization when historical build numbers appear in release notes.
+
+### Compatibility and Requirements
+
+- macOS 27 and Apple Silicon are required. NimBar is designed for displays with and without a notch; behavior can vary with macOS and display configuration.
+- Accessibility and Screen Recording permissions are needed for supported icon management and previews. Input Monitoring may be requested for the interactive editing gesture.
+- When Notification Center is opened from the clock while icons are hidden, those icons may briefly reappear. The interactive divider changes visibility; it does not promise native drag-to-reorder of all icons.
+- The update checker opens GitHub for a manual download; automatic installation is not available.
+
+### Installation Notes
+
+- NimBar is free, open source under GPL-3.0, and does not include telemetry.
+- Download the DMG or ZIP from this GitHub release. This release uses an Apple Development signature and is not notarized by Apple. See the repository's installation and security instructions for official macOS guidance.
+<!-- nimbar-release-sync:changelog:end -->
+
 <!-- release-tag: v0.3.0-beta.62 -->
 ## 0.3.0 beta — build 62
 [Release notes and downloads](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62)
@@ -13,7 +54,6 @@ User-facing highlights. Detailed build notes are maintained during development; 
 - Preserved native interaction with visible system controls while handling clicks in empty menu bar areas and hidden icon spaces.
 - Made the Layout menu bar strip adapt to the available width, including icons, separators, the clock and the drag placeholder.
 - Retained configurable horizontal trackpad and mouse gestures for showing and hiding menu bar icons, with native icon order preserved.
-<!-- nimbar-release-sync:changelog:end -->
 
 ## 0.3.0 beta — build 49
 

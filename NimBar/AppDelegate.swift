@@ -16,6 +16,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var autoHideLastTick = Date()
     private var permissionPollTimer: Timer?
     private var dividerModifierTimer: Timer?
+    private var dividerIdleTimer: Timer?
+    private var globalModifierMonitor: Any?
+    private var localModifierMonitor: Any?
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     private var globalRightMouseMonitor: Any?
@@ -480,7 +483,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                     return
                 }
                 let now = Date()
-                let elapsed = now.timeIntervalSince(self.autoHideLastTick)
+                let elapsed = max(0, now.timeIntervalSince(self.autoHideLastTick))
                 self.autoHideLastTick = now
                 guard !self.isPointerOverMenuBar(), !self.dividerModifiersActive, !self.isMenuTracking,
                       self.liveEditor?.isBusy != true else { return }
@@ -506,6 +509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         if let window = settingsWindow {
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
+            if settings.selectedSettingsSection == .layout { accessibility.startLiveUpdates() }
             return
         }
         let hosting = NSHostingController(rootView: SettingsView(
@@ -573,6 +577,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     func windowWillClose(_ notification: Notification) {
         if let window = notification.object as? NSWindow, window === settingsWindow {
+            accessibility.stopLiveUpdates()
             settings.showPermissionSetup = false
         }
     }
@@ -586,10 +591,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         autoHideTimer?.invalidate()
         permissionPollTimer?.invalidate()
         dividerModifierTimer?.invalidate()
+        dividerIdleTimer?.invalidate()
+        liveEditor?.shutdown()
         statusVisibilityRetry?.cancel()
         welcomeObservation?.cancel()
         for monitor in [globalMouseMonitor, localMouseMonitor, globalRightMouseMonitor, localRightMouseMonitor,
-                        globalScrollMonitor, localScrollMonitor] {
+                        globalScrollMonitor, localScrollMonitor, globalModifierMonitor, localModifierMonitor] {
             if let monitor { NSEvent.removeMonitor(monitor) }
         }
     }
@@ -650,11 +657,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             self.revealHiddenItemsIfBlankMenuBarClick(at: CGPoint(x: screen.frame.minX + point.x - bounds.minX,
                 y: screen.frame.maxY - point.y + bounds.minY))
         }
-        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+        globalModifierMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] _ in
             Task { @MainActor [weak self] in self?.refreshInteractiveDivider() }
         }
+        localModifierMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            Task { @MainActor [weak self] in self?.refreshInteractiveDivider() }
+            return event
+        }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refreshInteractiveDivider() }
+        }
+        timer.tolerance = 0.1
         RunLoop.main.add(timer, forMode: .common)
-        dividerModifierTimer = timer
+        dividerIdleTimer = timer
+        refreshInteractiveDivider()
     }
 
     private func refreshInteractiveDivider() {
@@ -662,7 +678,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let shouldShow = permissionsReady && !settings.isCapturingHotKey && settings.hotKeyModifiers != 0
             && modifierMask == settings.hotKeyModifiers
         dividerModifiersActive = shouldShow
-        let pointer = liveEditor?.isBusy == true ? nil : CGEvent(source: nil)?.location
+        if shouldShow && dividerModifierTimer == nil {
+            let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.refreshInteractiveDivider() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            dividerModifierTimer = timer
+        } else if !shouldShow {
+            dividerModifierTimer?.invalidate()
+            dividerModifierTimer = nil
+        }
+        let pointer = shouldShow && liveEditor?.isBusy != true ? CGEvent(source: nil)?.location : nil
         liveEditor?.update(isActive: shouldShow, pointer: pointer, shortcut: settings.hotKeyModifiers)
     }
 

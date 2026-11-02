@@ -33,6 +33,17 @@ class ReleaseSelectionTests(unittest.TestCase):
         self.assertEqual(sync.parse_release(github_release("v0.4.0-beta.8", prerelease=True)).build, 8)
         self.assertEqual(sync.parse_release(github_release("v0.4.0")).channel, "stable")
 
+    def test_stable_release_ignores_historical_build_in_notes(self):
+        release = sync.parse_release(github_release("v1.0.0", body="Improvements since beta build 62."))
+        self.assertIsNone(release.build)
+        self.assertEqual(release.display, "1.0.0")
+
+    def test_stable_release_keeps_changelog_sections_and_spacing(self):
+        release = sync.parse_release(github_release("v1.0.0", body="# Title\n\n### What's New\n\n- First\n\n### Bug Fixes\n\n- Second"))
+        block = sync.changelog_block(release)
+        self.assertIn("### What's New\n\n- First\n\n### Bug Fixes\n\n- Second", block)
+        self.assertNotIn("### Highlights", block)
+
     def test_skips_drafts_and_inconsistent_prerelease_flags(self):
         releases = [
             github_release("v9.0.0-beta.1", prerelease=True, draft=True),

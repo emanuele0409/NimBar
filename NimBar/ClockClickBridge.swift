@@ -9,6 +9,15 @@ struct ClockTarget: Equatable {
     let point: CGPoint
 }
 
+enum ClockCachePolicy {
+    static func needsFullScan(referenceCount: Int, age: TimeInterval) -> Bool {
+        referenceCount == 0 || age >= 30 || age < 0
+    }
+    static func acceptsResult(startGeneration: Int, currentGeneration: Int, busy: Bool) -> Bool {
+        startGeneration == currentGeneration && !busy
+    }
+}
+
 enum ClockRelayEffect: Equatable {
     case releaseRestriction
     case replay(ClockTarget)
@@ -123,6 +132,10 @@ final class ClockClickBridge {
     private var scannedAt = Date.distantPast
     private var nextRefresh = Date.distantPast
     private var refreshing = false
+    private var clockReferences: [ClockAXReference] = []
+    private var lastFullScan = Date.distantPast
+    private var cacheGeneration = 0
+    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var leaseActive = false
     private var queued: [ClockTarget] = []
     private var timer: Timer?
@@ -132,24 +145,76 @@ final class ClockClickBridge {
         self.layout = layout
         self.onBegin = onBegin
         self.onEnd = onEnd
+        observeInvalidations()
+    }
+
+    private func observeInvalidations() {
+        let workspace = NSWorkspace.shared.notificationCenter
+        let system = NotificationCenter.default
+        for name in [NSWorkspace.didWakeNotification, NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+            let token = workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                if name != NSWorkspace.didWakeNotification {
+                    guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                          ["com.apple.MenuBarAgent", "com.apple.controlcenter", "com.apple.systemuiserver"].contains(app.bundleIdentifier ?? "") else { return }
+                }
+                Task { @MainActor [weak self] in self?.invalidateClockCache() }
+            }
+            observers.append((workspace, token))
+        }
+        let token = system.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.invalidateClockCache() }
+        }
+        observers.append((system, token))
+    }
+
+    private func invalidateClockCache() {
+        cacheGeneration += 1
+        clockReferences = []
+        hits = []
+        scannedAt = .distantPast
+        nextRefresh = .distantPast
+    }
+
+    func shutdown() {
+        for (center, token) in observers { center.removeObserver(token) }
+        observers.removeAll()
+        invalidateClockCache()
     }
 
     func refreshIfNeeded() {
-        guard !isBusy, !refreshing, layout.canBridgeClock, AXIsProcessTrusted(), Date() >= nextRefresh else { return }
+        guard !isBusy, !refreshing, Date() >= nextRefresh, layout.canBridgeClock, AXIsProcessTrusted() else { return }
         nextRefresh = Date().addingTimeInterval(1)
         refreshing = true
+        let references = clockReferences
+        let needsFullScan = ClockCachePolicy.needsFullScan(referenceCount: references.count, age: Date().timeIntervalSince(lastFullScan))
+        let generation = cacheGeneration
         Task { [weak self] in
-            let items = await Task.detached(priority: .utility) { MenuBarAccessibility.enumerateMenuExtras() }.value
+            let scan = await Task.detached(priority: .utility) { () -> (items: [MenuBarCandidate], references: [ClockAXReference], full: Bool) in
+                if !needsFullScan {
+                    let current = references.compactMap { MenuBarAccessibility.refreshClockReference($0) }
+                    if current.count == references.count { return (current, references, false) }
+                }
+                let result = MenuBarAccessibility.scanMenuExtras()
+                return (result.items, result.clocks, true)
+            }.value
             guard let self else { return }
             self.refreshing = false
-            guard !self.isBusy else { return }
+            guard ClockCachePolicy.acceptsResult(startGeneration: generation, currentGeneration: self.cacheGeneration, busy: self.isBusy) else { return }
+            self.clockReferences = scan.references
+            if scan.full { self.lastFullScan = Date() }
             self.hits = NSScreen.screens.flatMap { screen -> [ClockHit] in
                 guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return [] }
                 let id = number.uint32Value
                 let bounds = CGDisplayBounds(id)
-                return MenuBarAccessibility.candidates(items, on: bounds)
+                return MenuBarAccessibility.candidates(scan.items, on: bounds)
                     .filter { $0.isSystemOwned && $0.isClock }
                     .map { ClockHit(target: ClockTarget(display: id, point: CGPoint(x: $0.frame.midX, y: $0.frame.midY)), bounds: $0.frame) }
+            }
+            // A cached reference that no longer belongs to a menu bar cannot
+            // safely route clicks; rediscover it instead of keeping stale hits.
+            if !scan.full && self.hits.count != scan.references.count {
+                self.invalidateClockCache()
+                return
             }
             self.scannedAt = Date()
         }

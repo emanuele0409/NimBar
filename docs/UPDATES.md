@@ -7,7 +7,7 @@ When a newer supported release is found, NimBar opens its GitHub release page so
 ## Verified repository state
 
 <!-- nimbar-release-sync:verified-release:start -->
-- Latest published release: **0.3.0 beta (build 62)** ([release notes and downloads](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62)). Its tag is `v0.3.0-beta.62` and its channel is **beta**.
+- Latest published release: **1.0.0** ([release notes and downloads](https://github.com/emanuele0409/NimBar/releases/tag/v1.0.0)). Its tag is `v1.0.0` and its channel is **stable**.
 <!-- nimbar-release-sync:verified-release:end -->
 
 The following points were checked in the current repository source and packaging script; they describe this checkout, not a published build:
@@ -26,7 +26,7 @@ The app uses published releases from `emanuele0409/NimBar` over HTTPS. GitHub's 
 
 GitHub's `GET /repos/{owner}/{repo}/releases/latest` endpoint returns the latest published full release, excluding prereleases and drafts. It therefore cannot discover beta builds. For beta updates, the client would need to list releases, ignore drafts, and select entries marked `prerelease: true`; it must follow GitHub pagination if the list exceeds one page. GitHub documents `created_at` as the date of the commit used for the release, not the date the release was drafted or published, so it should not be treated as `published_at`. [GitHub REST API: releases](https://docs.github.com/en/rest/releases/releases), [managing repository releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository).
 
-The current app identifies itself as a **beta** build in its bundle metadata. Beta builds can discover beta and stable releases; stable builds filter out prereleases. The GitHub prerelease flag must match the supported tag form. A stable release with the same version is ordered after the corresponding beta. GitHub does not define NimBar's channel policy.
+The 1.0.0 app identifies itself as a **stable** release in its bundle metadata. Beta builds can discover beta and stable releases; stable builds filter out prereleases. The GitHub prerelease flag must match the supported tag form. A stable release with the same version is ordered after the corresponding beta. GitHub does not define NimBar's channel policy.
 
 ### Version ordering
 

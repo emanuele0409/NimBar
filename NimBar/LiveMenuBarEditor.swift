@@ -108,6 +108,8 @@ final class LiveMenuBarEditor {
 
     var isBusy: Bool { session != nil || filter.routing.captured || settling || clockBridge.isBusy }
 
+    func shutdown() { clockBridge.shutdown() }
+
     init(access: MenuBarAccessibility, layout: MenuBarLayoutController,
          onBegin: @escaping () -> Void, onEnd: @escaping () -> Void, onCommit: @escaping () -> Void) {
         self.clockBridge = ClockClickBridge(layout: layout, onBegin: onBegin, onEnd: onEnd)

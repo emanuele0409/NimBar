@@ -1,7 +1,7 @@
 # Installation
 
 <!-- nimbar-release-sync:installation-current:start -->
-Download NimBar **0.3.0 beta (build 62)** only from the official [GitHub release page](https://github.com/emanuele0409/NimBar/releases/tag/v0.3.0-beta.62). No Xcode installation is required for end users.
+Download NimBar **1.0.0** only from the official [GitHub release page](https://github.com/emanuele0409/NimBar/releases/tag/v1.0.0). No Xcode installation is required for end users.
 <!-- nimbar-release-sync:installation-current:end -->
 
 ## DMG
